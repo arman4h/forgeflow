@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Poppins', sans-serif;
+  --font-body: 'Poppins', sans-serif;
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: #e4e4e7;
+    font-family: inherit;
+  }
+
+  .dark *,
+  .dark ::before,
+  .dark ::after {
+    border-color: #27272a;
+  }
+
+  html {
+    font-family: 'Poppins', sans-serif;
+  }
+
+  body {
+    font-family: 'Poppins', sans-serif;
+    color: #09090b;
+    background-color: #ffffff;
+    letter-spacing: -0.01em;
+  }
+
+  .dark body {
+    color: #f4f4f5;
+    background-color: #000000;
+  }
+
+  button,
+  input,
+  optgroup,
+  select,
+  textarea {
+    font-family: 'Poppins', sans-serif;
+  }
+
+  ::selection {
+    background-color: #cffafe;
+    color: #155e75;
+  }
+
+  .dark ::selection {
+    background-color: #164e63;
+    color: #cffafe;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e4e4e7;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #27272a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4d4d8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
