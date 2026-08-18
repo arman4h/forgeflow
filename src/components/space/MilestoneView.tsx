@@ -15,7 +15,7 @@ import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
-import { SpaceMilestone } from '../../types';
+import { Milestone as SpaceMilestone } from '../../types';
 
 export const MilestoneView: React.FC = () => {
   const {

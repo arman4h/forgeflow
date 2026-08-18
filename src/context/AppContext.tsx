@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as api from '../api';
 import {
   User,
   Space,
@@ -7,7 +9,6 @@ import {
   SpaceFile,
   Comment,
   Activity,
-  ActivityAction,
   Notification,
   AppRoute,
   SpaceTab,
@@ -19,19 +20,6 @@ import {
   Note,
   Milestone,
 } from '../types';
-import {
-  CURRENT_USER_ID,
-  MOCK_USERS,
-  MOCK_SPACES,
-  MOCK_SPACE_MEMBERS,
-  MOCK_TASKS,
-  MOCK_FILES,
-  MOCK_COMMENTS,
-  MOCK_ACTIVITIES,
-  MOCK_NOTIFICATIONS,
-  MOCK_NOTES,
-  MOCK_MILESTONES,
-} from '../data/mockData';
 
 interface InvitePreviewData {
   space: Space;
@@ -62,7 +50,7 @@ interface AppContextType {
   deleteSpace: (spaceId: string) => void;
   leaveSpace: (spaceId: string) => void;
   inviteMember: (spaceId: string, email: string) => void;
-  
+
   // Join Flow
   joinSpaceByCode: (code: string) => { success: boolean; space?: Space; message?: string };
   activeInvitePreview: InvitePreviewData | null;
@@ -71,8 +59,8 @@ interface AppContextType {
 
   // Tasks
   tasks: Task[];
-  myTasks: Task[]; // Aggregated tasks assigned to current user across all spaces + personal
-  spaceTasks: Task[]; // Tasks for the currently active space
+  myTasks: Task[];
+  spaceTasks: Task[];
   createTask: (params: {
     spaceId: string;
     title: string;
@@ -170,6 +158,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_PREFIX = 'forgeflow_spaces_v3_';
+const DEFAULT_USER_ID = 'usr_1';
 
 let idCounter = 0;
 export const generateUniqueId = (prefix: string): string => {
@@ -178,17 +167,10 @@ export const generateUniqueId = (prefix: string): string => {
   return `${prefix}_${Date.now()}_${idCounter}_${randomStr}`;
 };
 
-const deduplicateById = <T extends { id: string }>(items: T[]): T[] => {
-  const seen = new Set<string>();
-  return items.filter(item => {
-    if (!item.id || seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
-};
-
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Theme state: defaults to light (full white)
+  const queryClient = useQueryClient();
+
+  // ── Theme state ──
   const [theme, setThemeState] = useState<Theme>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_PREFIX}theme`);
@@ -202,9 +184,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     try {
       localStorage.setItem(`${STORAGE_PREFIX}theme`, theme);
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
@@ -221,113 +201,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [theme]);
 
-  const toggleTheme = () => {
-    setThemeState(prev => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = () => setThemeState(prev => (prev === 'dark' ? 'light' : 'dark'));
+  const setTheme = (newTheme: Theme) => setThemeState(newTheme);
 
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-  };
-
-  // Initialize state with localStorage persistence
+  // ── UI-only state ──
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem(`${STORAGE_PREFIX}current_user`) || CURRENT_USER_ID;
+    return localStorage.getItem(`${STORAGE_PREFIX}current_user`) || DEFAULT_USER_ID;
   });
 
-  const [users] = useState<User[]>(MOCK_USERS);
-
-  const [spaces, setSpaces] = useState<Space[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}spaces`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_SPACES;
-    } catch {
-      return MOCK_SPACES;
-    }
-  });
-
-  const [spaceMembers, setSpaceMembers] = useState<SpaceMember[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}members`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_SPACE_MEMBERS;
-    } catch {
-      return MOCK_SPACE_MEMBERS;
-    }
-  });
-
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}tasks`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_TASKS;
-    } catch {
-      return MOCK_TASKS;
-    }
-  });
-
-  const [notes, setNotes] = useState<Note[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}notes`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_NOTES;
-    } catch {
-      return MOCK_NOTES;
-    }
-  });
-
-  const [milestones, setMilestones] = useState<Milestone[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}milestones`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_MILESTONES;
-    } catch {
-      return MOCK_MILESTONES;
-    }
-  });
-
-  const [files, setFiles] = useState<SpaceFile[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}files`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_FILES;
-    } catch {
-      return MOCK_FILES;
-    }
-  });
-
-  const [comments, setComments] = useState<Comment[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}comments`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_COMMENTS;
-    } catch {
-      return MOCK_COMMENTS;
-    }
-  });
-
-  const [activities, setActivities] = useState<Activity[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}activities`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_ACTIVITIES;
-    } catch {
-      return MOCK_ACTIVITIES;
-    }
-  });
-
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_PREFIX}notifications`);
-      return saved ? deduplicateById(JSON.parse(saved)) : MOCK_NOTIFICATIONS;
-    } catch {
-      return MOCK_NOTIFICATIONS;
-    }
-  });
-
-  // Navigation State
   const [currentRoute, setCurrentRoute] = useState<AppRoute>('home');
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [selectedSpaceTab, setSelectedSpaceTab] = useState<SpaceTab>('overview');
   const [mySpaceTab, setMySpaceTab] = useState<MySpaceTab>('tasks');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-
-  // Invite Flow State
   const [activeInvitePreview, setActiveInvitePreview] = useState<InvitePreviewData | null>(null);
 
-  // Modals
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCreateSpaceOpen, setIsCreateSpaceOpen] = useState(false);
   const [isJoinSpaceOpen, setIsJoinSpaceOpen] = useState(false);
@@ -336,50 +224,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isUploadFileOpen, setIsUploadFileOpen] = useState(false);
 
-  // Sync to local storage
   useEffect(() => {
     localStorage.setItem(`${STORAGE_PREFIX}current_user`, currentUserId);
   }, [currentUserId]);
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}spaces`, JSON.stringify(spaces));
-  }, [spaces]);
+  // ── React Query: Data fetching ──
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const res = await api.getUsers();
+      return res;
+    },
+  });
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}members`, JSON.stringify(spaceMembers));
-  }, [spaceMembers]);
+  const { data: spaces = [] } = useQuery<Space[]>({
+    queryKey: ['spaces', currentUserId],
+    queryFn: async () => {
+      const res = await api.getSpaces(currentUserId);
+      return res;
+    },
+  });
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}tasks`, JSON.stringify(tasks));
-  }, [tasks]);
+  const { data: tasks = [] } = useQuery<Task[]>({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const res = await api.getTasks({});
+      return res;
+    },
+  });
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}notes`, JSON.stringify(notes));
-  }, [notes]);
+  const { data: notes = [] } = useQuery<Note[]>({
+    queryKey: ['notes'],
+    queryFn: async () => {
+      const res = await api.getNotes();
+      return res;
+    },
+  });
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}milestones`, JSON.stringify(milestones));
-  }, [milestones]);
+  const { data: milestones = [] } = useQuery<Milestone[]>({
+    queryKey: ['milestones'],
+    queryFn: async () => {
+      const res = await api.getMilestones();
+      return res;
+    },
+  });
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}files`, JSON.stringify(files));
-  }, [files]);
+  const { data: files = [] } = useQuery<SpaceFile[]>({
+    queryKey: ['files'],
+    queryFn: async () => {
+      const res = await api.getFiles();
+      return res;
+    },
+  });
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}comments`, JSON.stringify(comments));
-  }, [comments]);
+  const { data: comments = [] } = useQuery<Comment[]>({
+    queryKey: ['comments'],
+    queryFn: async () => {
+      const res = await api.getComments();
+      return res;
+    },
+  });
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}activities`, JSON.stringify(activities));
-  }, [activities]);
+  const { data: activities = [] } = useQuery<Activity[]>({
+    queryKey: ['activities'],
+    queryFn: async () => {
+      const res = await api.getActivities();
+      return res;
+    },
+  });
 
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}notifications`, JSON.stringify(notifications));
-  }, [notifications]);
+  const { data: notifications = [] } = useQuery<Notification[]>({
+    queryKey: ['notifications', currentUserId],
+    queryFn: async () => {
+      const res = await api.getNotifications(currentUserId);
+      return res;
+    },
+    enabled: !!currentUserId,
+  });
 
-  // Derived values
+  // ── Derived values ──
   const currentUser = useMemo(() => {
-    return users.find(u => u.id === currentUserId) || users[0];
+    return users.find(u => u.id === currentUserId) || users[0] || { id: currentUserId, name: 'Loading...', email: '' };
   }, [users, currentUserId]);
 
   const personalSpace = useMemo(() => {
@@ -414,6 +339,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return spaces.find(s => s.id === selectedSpaceId) || null;
   }, [spaces, selectedSpaceId]);
 
+  const myTasks = useMemo(() => {
+    return tasks.filter(t => t.assigneeId === currentUser.id);
+  }, [tasks, currentUser]);
+
+  const spaceTasks = useMemo(() => {
+    if (!selectedSpaceId) return [];
+    return tasks.filter(t => t.spaceId === selectedSpaceId);
+  }, [tasks, selectedSpaceId]);
+
+  const spaceFiles = useMemo(() => {
+    if (!selectedSpaceId) return [];
+    return files.filter(f => f.spaceId === selectedSpaceId);
+  }, [files, selectedSpaceId]);
+
+  const spaceActivities = useMemo(() => {
+    if (!selectedSpaceId) return [];
+    return activities.filter(a => a.spaceId === selectedSpaceId);
+  }, [activities, selectedSpaceId]);
+
+  const crossSpaceActivities = useMemo(() => {
+    const userSpaceIds = new Set(mySpaces.map(s => s.id));
+    return activities.filter(a => userSpaceIds.has(a.spaceId));
+  }, [activities, mySpaces]);
+
+  const unreadNotificationCount = useMemo(() => {
+    return notifications.filter(n => n.userId === currentUser.id && !n.read).length;
+  }, [notifications, currentUser]);
+
+  // ── Helper functions (pure lookups) ──
   const getUserById = (id?: string) => {
     if (!id) return undefined;
     return users.find(u => u.id === id);
@@ -424,47 +378,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return spaces.find(s => s.id === id);
   };
 
-  // Aggregated tasks assigned to current user across all spaces + personal
-  const myTasks = useMemo(() => {
-    return tasks.filter(t => t.assigneeId === currentUser.id);
-  }, [tasks, currentUser]);
+  const spaceNotes = (spaceId: string) => notes.filter(n => n.spaceId === spaceId);
+  const spaceMilestones = (spaceId: string) => milestones.filter(m => m.spaceId === spaceId);
+  const taskComments = (taskId: string) => comments.filter(c => c.taskId === taskId);
 
-  // Tasks for the currently active space
-  const spaceTasks = useMemo(() => {
-    if (!selectedSpaceId) return [];
-    return tasks.filter(t => t.spaceId === selectedSpaceId);
-  }, [tasks, selectedSpaceId]);
-
-  // Files for the currently active space
-  const spaceFiles = useMemo(() => {
-    if (!selectedSpaceId) return [];
-    return files.filter(f => f.spaceId === selectedSpaceId);
-  }, [files, selectedSpaceId]);
-
-  // Notes helper
-  const spaceNotes = (spaceId: string) => {
-    return notes.filter(n => n.spaceId === spaceId);
-  };
-
-  // Milestones helper
-  const spaceMilestones = (spaceId: string) => {
-    return milestones.filter(m => m.spaceId === spaceId);
-  };
-
-  // Space members list with full User profile details
   const getSpaceMembers = (spaceId: string) => {
-    const members = spaceMembers.filter(m => m.spaceId === spaceId);
-    return members.map(m => ({
-      ...m,
-      user: getUserById(m.userId) || {
-        id: m.userId,
-        name: 'Team Member',
-        email: 'member@forgeflow.app',
-      },
-    }));
+    const space = spaces.find(s => s.id === spaceId);
+    if (!space) return [];
+    return (space.memberIds || []).map(userId => {
+      const user = users.find(u => u.id === userId);
+      return {
+        id: `sm_${spaceId}_${userId}`,
+        spaceId,
+        userId,
+        role: userId === space.ownerId ? ('owner' as const) : ('member' as const),
+        joinedAt: space.createdAt,
+        user: user || { id: userId, name: 'Team Member', email: 'member@forgeflow.app' },
+      };
+    });
   };
 
-  // Space progress calculation
   const getSpaceProgress = (spaceId: string) => {
     const relevantTasks = tasks.filter(t => t.spaceId === spaceId);
     if (relevantTasks.length === 0) return 0;
@@ -472,31 +405,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return Math.round((completed / relevantTasks.length) * 100);
   };
 
-  // Space Activities
-  const spaceActivities = useMemo(() => {
-    if (!selectedSpaceId) return [];
-    return activities.filter(a => a.spaceId === selectedSpaceId);
-  }, [activities, selectedSpaceId]);
-
-  // Cross-space activities (from all joined spaces)
-  const crossSpaceActivities = useMemo(() => {
-    const userSpaceIds = new Set(mySpaces.map(s => s.id));
-    return activities.filter(a => userSpaceIds.has(a.spaceId));
-  }, [activities, mySpaces]);
-
-  // Comments helper
-  const taskComments = (taskId: string) => {
-    return comments.filter(c => c.taskId === taskId);
-  };
-
-  // Notifications
-  const unreadNotificationCount = useMemo(() => {
-    return notifications.filter(n => n.userId === currentUser.id && !n.read).length;
-  }, [notifications, currentUser]);
-
-  // Action Handlers
+  // ── UI Actions ──
   const switchCurrentUser = (userId: string) => {
     setCurrentUserId(userId);
+    queryClient.invalidateQueries({ queryKey: ['spaces'] });
+    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
   };
 
   const switchSpace = (spaceId: string | null) => {
@@ -505,30 +419,233 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentRoute('home');
       return;
     }
-
     if (spaceId === 'personal' || spaceId === personalSpace.id) {
       setSelectedSpaceId(personalSpace.id);
       setCurrentRoute('my_space');
       return;
     }
-
     setSelectedSpaceId(spaceId);
     setCurrentRoute('space_detail');
     setSelectedSpaceTab('overview');
   };
 
+  // ── Mutations ──
+  const createSpaceMutation = useMutation({
+    mutationFn: (data: { name: string; description?: string; icon?: string; category?: SpaceCategory; ownerId: string }) =>
+      api.createSpace(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  const updateSpaceMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Space> }) => api.updateSpace(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
+    },
+  });
+
+  const deleteSpaceMutation = useMutation({
+    mutationFn: (id: string) => api.deleteSpace(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      queryClient.invalidateQueries({ queryKey: ['milestones'] });
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  const leaveSpaceMutation = useMutation({
+    mutationFn: ({ id, userId }: { id: string; userId: string }) => api.leaveSpace(id, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
+    },
+  });
+
+  const joinSpaceByCodeMutation = useMutation({
+    mutationFn: ({ code, userId }: { code: string; userId: string }) => api.joinSpaceByCode(code, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  const addSpaceMemberMutation = useMutation({
+    mutationFn: ({ spaceId, userId, role }: { spaceId: string; userId: string; role?: string }) =>
+      api.addSpaceMember(spaceId, userId, role),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spaces'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: (data: {
+      spaceId: string; title: string; description?: string;
+      priority?: Priority; status?: TaskStatus;
+      assigneeId?: string; reporterId: string; dueDate?: string;
+      checklist?: string[];
+    }) => api.createTask(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Task> }) => api.updateTask(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: (id: string) => api.deleteTask(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['comments'] });
+    },
+  });
+
+  const moveTaskStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: TaskStatus }) => api.moveTaskStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  const toggleChecklistItemMutation = useMutation({
+    mutationFn: ({ taskId, itemId }: { taskId: string; itemId: string }) =>
+      api.toggleChecklistItem(taskId, itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const addChecklistItemMutation = useMutation({
+    mutationFn: ({ taskId, title }: { taskId: string; title: string }) =>
+      api.addChecklistItem(taskId, title),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const removeChecklistItemMutation = useMutation({
+    mutationFn: ({ taskId, itemId }: { taskId: string; itemId: string }) =>
+      api.removeChecklistItem(taskId, itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const createNoteMutation = useMutation({
+    mutationFn: (data: { spaceId: string; title: string; content: string }) => api.createNote(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+    },
+  });
+
+  const updateNoteMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Note> }) => api.updateNote(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+    },
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteNote(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+    },
+  });
+
+  const createMilestoneMutation = useMutation({
+    mutationFn: (data: {
+      spaceId: string; title: string; dueDate: string;
+      description?: string; targetDeliverable?: string;
+    }) => api.createMilestone(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['milestones'] });
+    },
+  });
+
+  const updateMilestoneMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Milestone> }) => api.updateMilestone(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['milestones'] });
+    },
+  });
+
+  const deleteMilestoneMutation = useMutation({
+    mutationFn: (id: string) => api.deleteMilestone(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['milestones'] });
+    },
+  });
+
+  const addFileMutation = useMutation({
+    mutationFn: (data: {
+      spaceId: string; name: string; url: string;
+      type: SpaceFile['type']; size?: string; uploadedById: string;
+    }) => api.addFile(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: (id: string) => api.deleteFile(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+    },
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: (data: { taskId: string; spaceId: string; authorId: string; content: string }) =>
+      api.addComment(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (id: string) => api.deleteComment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments'] });
+    },
+  });
+
+  const markNotificationReadMutation = useMutation({
+    mutationFn: (id: string) => api.markNotificationRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  const markAllNotificationsReadMutation = useMutation({
+    mutationFn: (userId: string) => api.markAllNotificationsRead(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  // ── Action wrappers (same signatures as before) ──
   const createSpace = (
     name: string,
     description?: string,
     icon: string = '🚀',
     category: SpaceCategory = 'university'
   ): Space => {
-    const code = name
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .slice(0, 6)
-      .toUpperCase() || 'SPACE';
-
-    const newSpace: Space = {
+    const optimisticSpace: Space = {
       id: generateUniqueId('sp'),
       name: name.trim(),
       description: description?.trim() || undefined,
@@ -536,53 +653,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       category,
       ownerId: currentUser.id,
       memberIds: [currentUser.id],
-      inviteCode: code,
+      inviteCode: name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'SPACE',
       createdAt: new Date().toISOString(),
     };
 
-    const newMember: SpaceMember = {
-      id: generateUniqueId('sm'),
-      spaceId: newSpace.id,
-      userId: currentUser.id,
-      role: 'owner',
-      joinedAt: new Date().toISOString(),
-    };
+    createSpaceMutation.mutate({
+      name: name.trim(),
+      description: description?.trim(),
+      icon,
+      category,
+      ownerId: currentUser.id,
+    });
 
-    const newActivity: Activity = {
-      id: generateUniqueId('act'),
-      spaceId: newSpace.id,
-      userId: currentUser.id,
-      action: 'created_space',
-      entityTitle: newSpace.name,
-      details: 'Created new project space',
-      timestamp: 'Just now',
-    };
-
-    setSpaces(prev => [newSpace, ...prev]);
-    setSpaceMembers(prev => [newMember, ...prev]);
-    setActivities(prev => [newActivity, ...prev]);
-
-    setSelectedSpaceId(newSpace.id);
+    setSelectedSpaceId(optimisticSpace.id);
     setCurrentRoute('space_detail');
     setSelectedSpaceTab('overview');
 
-    return newSpace;
+    return optimisticSpace;
   };
 
   const updateSpace = (spaceId: string, updates: Partial<Space>) => {
-    setSpaces(prev =>
-      prev.map(s => (s.id === spaceId ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s))
-    );
+    updateSpaceMutation.mutate({ id: spaceId, data: updates });
   };
 
   const deleteSpace = (spaceId: string) => {
-    setSpaces(prev => prev.filter(s => s.id !== spaceId));
-    setSpaceMembers(prev => prev.filter(m => m.spaceId !== spaceId));
-    setTasks(prev => prev.filter(t => t.spaceId !== spaceId));
-    setFiles(prev => prev.filter(f => f.spaceId !== spaceId));
-    setNotes(prev => prev.filter(n => n.spaceId !== spaceId));
-    setMilestones(prev => prev.filter(m => m.spaceId !== spaceId));
-
+    deleteSpaceMutation.mutate(spaceId);
     if (selectedSpaceId === spaceId) {
       setSelectedSpaceId(null);
       setCurrentRoute('home');
@@ -590,22 +685,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const leaveSpace = (spaceId: string) => {
-    setSpaces(prev =>
-      prev.map(s => {
-        if (s.id === spaceId) {
-          return {
-            ...s,
-            memberIds: s.memberIds.filter(id => id !== currentUser.id),
-          };
-        }
-        return s;
-      })
-    );
-
-    setSpaceMembers(prev =>
-      prev.filter(m => !(m.spaceId === spaceId && m.userId === currentUser.id))
-    );
-
+    leaveSpaceMutation.mutate({ id: spaceId, userId: currentUser.id });
     if (selectedSpaceId === spaceId) {
       setSelectedSpaceId(null);
       setCurrentRoute('home');
@@ -613,103 +693,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const inviteMember = (spaceId: string, email: string) => {
-    const space = getSpaceById(spaceId);
-    if (!space) return;
-
-    let targetUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    const isNew = !targetUser;
-
-    if (!targetUser) {
-      const generatedName = email.split('@')[0].replace('.', ' ');
-      targetUser = {
-        id: generateUniqueId('usr'),
-        name: generatedName.charAt(0).toUpperCase() + generatedName.slice(1),
-        email,
-        avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100`,
-        title: 'Project Contributor',
-      };
-    }
-
-    if (!space.memberIds.includes(targetUser.id)) {
-      setSpaces(prev =>
-        prev.map(s => (s.id === spaceId ? { ...s, memberIds: [...s.memberIds, targetUser!.id] } : s))
-      );
-
-      const newMember: SpaceMember = {
-        id: generateUniqueId('sm'),
-        spaceId,
-        userId: targetUser.id,
-        role: 'member',
-        joinedAt: new Date().toISOString(),
-      };
-      setSpaceMembers(prev => [...prev, newMember]);
-    }
-
-    const newActivity: Activity = {
-      id: generateUniqueId('act'),
-      spaceId,
-      userId: currentUser.id,
-      action: 'joined_space',
-      entityTitle: targetUser.name,
-      details: `Invited ${email} to collaborate`,
-      timestamp: 'Just now',
-    };
-    setActivities(prev => [newActivity, ...prev]);
-
-    const newNotif: Notification = {
-      id: generateUniqueId('notif'),
-      userId: targetUser.id,
-      spaceId,
-      title: 'Space Invitation',
-      message: `${currentUser.name} invited you to join "${space.name}"`,
-      type: 'space_invitation',
-      read: false,
-      createdAt: new Date().toISOString(),
-    };
-    setNotifications(prev => [newNotif, ...prev]);
+    addSpaceMemberMutation.mutate({ spaceId, userId: email, role: 'member' });
   };
 
   const joinSpaceByCode = (code: string): { success: boolean; space?: Space; message?: string } => {
     const cleanCode = code.trim().toUpperCase();
-    const space = spaces.find(s => s.inviteCode.toUpperCase() === cleanCode);
+    const existing = spaces.find(s => s.inviteCode.toUpperCase() === cleanCode);
 
-    if (!space) {
-      return { success: false, message: 'Invalid invite code. Space not found.' };
-    }
-
-    if (space.memberIds.includes(currentUser.id)) {
-      switchSpace(space.id);
+    if (existing && existing.memberIds.includes(currentUser.id)) {
+      switchSpace(existing.id);
       setActiveInvitePreview(null);
-      return { success: true, space, message: 'You are already a member of this space.' };
+      return { success: true, space: existing, message: 'You are already a member of this space.' };
     }
 
-    setSpaces(prev =>
-      prev.map(s => (s.id === space.id ? { ...s, memberIds: [...s.memberIds, currentUser.id] } : s))
+    joinSpaceByCodeMutation.mutate(
+      { code: cleanCode, userId: currentUser.id },
+      {
+        onSuccess: (result) => {
+          if (result?.space) {
+            switchSpace(result.space.id);
+          }
+          setActiveInvitePreview(null);
+        },
+      }
     );
 
-    const newMember: SpaceMember = {
-      id: generateUniqueId('sm'),
-      spaceId: space.id,
-      userId: currentUser.id,
-      role: 'member',
-      joinedAt: new Date().toISOString(),
-    };
-    setSpaceMembers(prev => [...prev, newMember]);
-
-    const newActivity: Activity = {
-      id: generateUniqueId('act'),
-      spaceId: space.id,
-      userId: currentUser.id,
-      action: 'joined_space',
-      entityTitle: currentUser.name,
-      details: 'Joined via invite code',
-      timestamp: 'Just now',
-    };
-    setActivities(prev => [newActivity, ...prev]);
-
-    switchSpace(space.id);
-    setActiveInvitePreview(null);
-    return { success: true, space };
+    if (existing) {
+      return { success: true, space: existing };
+    }
+    return { success: true };
   };
 
   const openInvitePreviewByCode = (code: string): boolean => {
@@ -732,7 +744,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  // Task Operations
   const createTask = (params: {
     spaceId: string;
     title: string;
@@ -743,13 +754,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dueDate?: string;
     checklist?: string[];
   }): Task => {
-    const checklistItems = (params.checklist || []).map(title => ({
-      id: generateUniqueId('chk'),
-      title,
-      completed: false,
-    }));
-
-    const newTask: Task = {
+    const optimisticTask: Task = {
       id: generateUniqueId('tsk'),
       spaceId: params.spaceId,
       title: params.title.trim(),
@@ -759,55 +764,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assigneeId: params.assigneeId || undefined,
       reporterId: currentUser.id,
       dueDate: params.dueDate || undefined,
-      checklist: checklistItems,
+      checklist: (params.checklist || []).map(title => ({
+        id: generateUniqueId('chk'),
+        title,
+        completed: false,
+      })),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    setTasks(prev => [newTask, ...prev]);
-
-    const newActivity: Activity = {
-      id: generateUniqueId('act'),
+    createTaskMutation.mutate({
       spaceId: params.spaceId,
-      userId: currentUser.id,
-      action: 'created_task',
-      entityTitle: newTask.title,
-      details: params.assigneeId
-        ? `Assigned to ${getUserById(params.assigneeId)?.name || 'member'}`
-        : 'Added to task list',
-      timestamp: 'Just now',
-      taskId: newTask.id,
-    };
-    setActivities(prev => [newActivity, ...prev]);
+      title: params.title.trim(),
+      description: params.description?.trim(),
+      priority: params.priority || 'medium',
+      status: params.status || 'todo',
+      assigneeId: params.assigneeId,
+      reporterId: currentUser.id,
+      dueDate: params.dueDate,
+      checklist: params.checklist,
+    });
 
-    if (params.assigneeId && params.assigneeId !== currentUser.id) {
-      const space = getSpaceById(params.spaceId);
-      const newNotif: Notification = {
-        id: generateUniqueId('notif'),
-        userId: params.assigneeId,
-        spaceId: params.spaceId,
-        taskId: newTask.id,
-        title: 'Task Assigned',
-        message: `${currentUser.name} assigned you "${newTask.title}" in ${space?.name || 'Space'}`,
-        type: 'task_assigned',
-        read: false,
-        createdAt: new Date().toISOString(),
-      };
-      setNotifications(prev => [newNotif, ...prev]);
-    }
-
-    return newTask;
+    return optimisticTask;
   };
 
   const updateTask = (taskId: string, updates: Partial<Task>) => {
-    setTasks(prev =>
-      prev.map(t => (t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t))
-    );
+    updateTaskMutation.mutate({ id: taskId, data: updates });
   };
 
   const deleteTask = (taskId: string) => {
-    setTasks(prev => prev.filter(t => t.id !== taskId));
-    setComments(prev => prev.filter(c => c.taskId !== taskId));
+    deleteTaskMutation.mutate(taskId);
     if (selectedTaskId === taskId) {
       setSelectedTaskId(null);
     }
@@ -816,106 +802,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleTaskCompleted = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
-
     const nextStatus: TaskStatus = task.status === 'done' ? 'todo' : 'done';
     moveTaskStatus(taskId, nextStatus);
   };
 
   const moveTaskStatus = (taskId: string, newStatus: TaskStatus) => {
     const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const prevStatus = task.status;
-    if (prevStatus === newStatus) return;
-
-    setTasks(prev =>
-      prev.map(t =>
-        t.id === taskId ? { ...t, status: newStatus, updatedAt: new Date().toISOString() } : t
-      )
-    );
-
-    const actionType: ActivityAction = newStatus === 'done' ? 'completed_task' : 'status_changed';
-    const statusLabel =
-      newStatus === 'done' ? 'Completed' : newStatus === 'in_progress' ? 'In Progress' : 'To Do';
-
-    const newActivity: Activity = {
-      id: generateUniqueId('act'),
-      spaceId: task.spaceId,
-      userId: currentUser.id,
-      action: actionType,
-      entityTitle: task.title,
-      details: `Moved to ${statusLabel}`,
-      timestamp: 'Just now',
-      taskId,
-    };
-    setActivities(prev => [newActivity, ...prev]);
-
-    if (newStatus === 'done' && task.reporterId !== currentUser.id) {
-      const newNotif: Notification = {
-        id: generateUniqueId('notif'),
-        userId: task.reporterId,
-        spaceId: task.spaceId,
-        taskId: task.id,
-        title: 'Task Completed',
-        message: `${currentUser.name} completed "${task.title}"`,
-        type: 'task_completed',
-        read: false,
-        createdAt: new Date().toISOString(),
-      };
-      setNotifications(prev => [newNotif, ...prev]);
-    }
+    if (!task || task.status === newStatus) return;
+    moveTaskStatusMutation.mutate({ id: taskId, status: newStatus });
   };
 
   const toggleChecklistItem = (taskId: string, itemId: string) => {
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id !== taskId) return t;
-        return {
-          ...t,
-          checklist: t.checklist.map(item =>
-            item.id === itemId ? { ...item, completed: !item.completed } : item
-          ),
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
+    toggleChecklistItemMutation.mutate({ taskId, itemId });
   };
 
   const addChecklistItem = (taskId: string, title: string) => {
     if (!title.trim()) return;
-    const newItem = {
-      id: generateUniqueId('chk'),
-      title: title.trim(),
-      completed: false,
-    };
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id !== taskId) return t;
-        return {
-          ...t,
-          checklist: [...t.checklist, newItem],
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
+    addChecklistItemMutation.mutate({ taskId, title: title.trim() });
   };
 
   const removeChecklistItem = (taskId: string, itemId: string) => {
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id !== taskId) return t;
-        return {
-          ...t,
-          checklist: t.checklist.filter(item => item.id !== itemId),
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
+    removeChecklistItemMutation.mutate({ taskId, itemId });
   };
 
-  // Notes CRUD
   const createNote = (spaceId: string, title: string, content: string): Note => {
-    const newNote: Note = {
+    const optimisticNote: Note = {
       id: generateUniqueId('note'),
       spaceId,
       title: title.trim() || 'Untitled Note',
@@ -924,21 +835,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    setNotes(prev => [newNote, ...prev]);
-    return newNote;
+
+    createNoteMutation.mutate({
+      spaceId,
+      title: title.trim() || 'Untitled Note',
+      content: content.trim(),
+    });
+
+    return optimisticNote;
   };
 
   const updateNote = (noteId: string, updates: Partial<Note>) => {
-    setNotes(prev =>
-      prev.map(n => (n.id === noteId ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n))
-    );
+    updateNoteMutation.mutate({ id: noteId, data: updates });
   };
 
   const deleteNote = (noteId: string) => {
-    setNotes(prev => prev.filter(n => n.id !== noteId));
+    deleteNoteMutation.mutate(noteId);
   };
 
-  // Milestones CRUD
   const createMilestone = (
     spaceId: string,
     title: string,
@@ -946,7 +860,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     description?: string,
     targetDeliverable?: string
   ): Milestone => {
-    const newMilestone: Milestone = {
+    const optimisticMilestone: Milestone = {
       id: generateUniqueId('ms'),
       spaceId,
       title: title.trim(),
@@ -955,19 +869,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       targetDeliverable: targetDeliverable?.trim() || undefined,
       status: 'upcoming',
     };
-    setMilestones(prev => [...prev, newMilestone]);
-    return newMilestone;
+
+    createMilestoneMutation.mutate({
+      spaceId,
+      title: title.trim(),
+      dueDate,
+      description: description?.trim(),
+      targetDeliverable: targetDeliverable?.trim(),
+    });
+
+    return optimisticMilestone;
   };
 
   const updateMilestone = (milestoneId: string, updates: Partial<Milestone>) => {
-    setMilestones(prev => prev.map(m => (m.id === milestoneId ? { ...m, ...updates } : m)));
+    updateMilestoneMutation.mutate({ id: milestoneId, data: updates });
   };
 
   const deleteMilestone = (milestoneId: string) => {
-    setMilestones(prev => prev.filter(m => m.id !== milestoneId));
+    deleteMilestoneMutation.mutate(milestoneId);
   };
 
-  // Files
   const addFile = (
     spaceId: string,
     name: string,
@@ -975,103 +896,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     type: SpaceFile['type'] = 'document',
     size: string = '1.2 MB'
   ) => {
-    const newFile: SpaceFile = {
-      id: generateUniqueId('fil'),
+    addFileMutation.mutate({
       spaceId,
       name: name.trim(),
       url,
       type,
       size,
       uploadedById: currentUser.id,
-      uploadedAt: new Date().toISOString(),
-    };
-
-    setFiles(prev => [newFile, ...prev]);
-
-    const newActivity: Activity = {
-      id: generateUniqueId('act'),
-      spaceId,
-      userId: currentUser.id,
-      action: 'uploaded_file',
-      entityTitle: newFile.name,
-      details: `Added ${newFile.type} asset`,
-      timestamp: 'Just now',
-    };
-    setActivities(prev => [newActivity, ...prev]);
+    });
   };
 
   const deleteFile = (fileId: string) => {
-    setFiles(prev => prev.filter(f => f.id !== fileId));
+    deleteFileMutation.mutate(fileId);
   };
 
-  // Comments
   const addComment = (taskId: string, content: string) => {
     if (!content.trim()) return;
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    const newComment: Comment = {
-      id: generateUniqueId('cmt'),
+    addCommentMutation.mutate({
       taskId,
       spaceId: task.spaceId,
       authorId: currentUser.id,
       content: content.trim(),
-      createdAt: new Date().toISOString(),
-    };
-
-    setComments(prev => [...prev, newComment]);
-
-    const newAct: Activity = {
-      id: generateUniqueId('act'),
-      spaceId: task.spaceId,
-      userId: currentUser.id,
-      action: 'commented',
-      entityTitle: task.title,
-      details: `Commented: "${content.trim().slice(0, 40)}${content.length > 40 ? '...' : ''}"`,
-      timestamp: 'Just now',
-      taskId,
-    };
-    setActivities(prev => [newAct, ...prev]);
+    });
   };
 
   const deleteComment = (commentId: string) => {
-    setComments(prev => prev.filter(c => c.id !== commentId));
+    deleteCommentMutation.mutate(commentId);
   };
 
-  // Notifications
   const markNotificationRead = (id: string) => {
-    setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
+    markNotificationReadMutation.mutate(id);
   };
 
   const markAllNotificationsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    markAllNotificationsReadMutation.mutate(currentUser.id);
   };
 
   const resetAllData = () => {
-    localStorage.removeItem(`${STORAGE_PREFIX}current_user`);
-    localStorage.removeItem(`${STORAGE_PREFIX}spaces`);
-    localStorage.removeItem(`${STORAGE_PREFIX}members`);
-    localStorage.removeItem(`${STORAGE_PREFIX}tasks`);
-    localStorage.removeItem(`${STORAGE_PREFIX}notes`);
-    localStorage.removeItem(`${STORAGE_PREFIX}milestones`);
-    localStorage.removeItem(`${STORAGE_PREFIX}files`);
-    localStorage.removeItem(`${STORAGE_PREFIX}comments`);
-    localStorage.removeItem(`${STORAGE_PREFIX}activities`);
-    localStorage.removeItem(`${STORAGE_PREFIX}notifications`);
-
-    setCurrentUserId(CURRENT_USER_ID);
-    setSpaces(MOCK_SPACES);
-    setSpaceMembers(MOCK_SPACE_MEMBERS);
-    setTasks(MOCK_TASKS);
-    setNotes(MOCK_NOTES);
-    setMilestones(MOCK_MILESTONES);
-    setFiles(MOCK_FILES);
-    setComments(MOCK_COMMENTS);
-    setActivities(MOCK_ACTIVITIES);
-    setNotifications(MOCK_NOTIFICATIONS);
-
-    setCurrentRoute('home');
-    setSelectedSpaceId(null);
+    queryClient.invalidateQueries();
   };
 
   return (

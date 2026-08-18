@@ -16,7 +16,7 @@ import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
-import { SpaceNote } from '../../types';
+import { Note as SpaceNote } from '../../types';
 
 export const NotesView: React.FC = () => {
   const {
