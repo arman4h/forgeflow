@@ -85,7 +85,7 @@ export const MySpaceView: React.FC = () => {
   return (
     <div
       id="myspace-view"
-      className="max-w-5xl mx-auto px-4 md:px-8 py-8 space-y-6 animate-in fade-in duration-200"
+      className="mx-auto px-4 md:px-8 py-8 space-y-6 animate-in fade-in duration-200"
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200 dark:border-zinc-800">
@@ -97,7 +97,7 @@ export const MySpaceView: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Your permanent home in ForgeFlow. Unified cross-space work and private tasks.
+            Your permanent home in TrackFlow. Unified cross-space work and private tasks.
           </p>
         </div>
 

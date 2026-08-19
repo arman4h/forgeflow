@@ -18,7 +18,7 @@ export const InviteMembersModal: React.FC = () => {
 
   if (!isInviteMembersOpen || !currentSpace) return null;
 
-  const inviteUrl = `https://forgeflow.app/join/${currentSpace.inviteCode}`;
+  const inviteUrl = `${window.location.origin}/?join=${currentSpace.inviteCode}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(inviteUrl);

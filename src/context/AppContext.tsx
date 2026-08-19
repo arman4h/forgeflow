@@ -33,10 +33,16 @@ interface AppContextType {
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
 
-  // Current user & authentication simulation
+  // Auth
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
+  logout: () => void;
+
+  // Current user
   currentUser: User;
   users: User[];
-  switchCurrentUser: (userId: string) => void;
 
   // Spaces
   spaces: Space[];
@@ -52,10 +58,12 @@ interface AppContextType {
   inviteMember: (spaceId: string, email: string) => void;
 
   // Join Flow
-  joinSpaceByCode: (code: string) => { success: boolean; space?: Space; message?: string };
+  joinSpaceByCode: (code: string) => Promise<{ success: boolean; space?: Space; message?: string }>;
   activeInvitePreview: InvitePreviewData | null;
   setActiveInvitePreview: (invite: InvitePreviewData | null) => void;
-  openInvitePreviewByCode: (code: string) => boolean;
+  openInvitePreviewByCode: (code: string) => Promise<boolean>;
+  justJoinedSpace: Space | null;
+  dismissWelcome: () => void;
 
   // Tasks
   tasks: Task[];
@@ -157,8 +165,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_PREFIX = 'forgeflow_spaces_v3_';
-const DEFAULT_USER_ID = 'usr_1';
+const STORAGE_PREFIX = 'trackflow_spaces_v3_';
 
 let idCounter = 0;
 export const generateUniqueId = (prefix: string): string => {
@@ -204,10 +211,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleTheme = () => setThemeState(prev => (prev === 'dark' ? 'light' : 'dark'));
   const setTheme = (newTheme: Theme) => setThemeState(newTheme);
 
-  // ── UI-only state ──
+  // ── Auth state ──
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('trackflow_token'));
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem(`${STORAGE_PREFIX}current_user`) || DEFAULT_USER_ID;
+    return localStorage.getItem(`${STORAGE_PREFIX}current_user`) || '';
   });
+
+  // ── Check auth on mount ──
+  useEffect(() => {
+    const token = localStorage.getItem('trackflow_token');
+    if (token) {
+      setAuthToken(token);
+      api.getMe()
+        .then((user) => {
+          setCurrentUserId(user.id);
+          setIsAuthenticated(true);
+          localStorage.setItem(`${STORAGE_PREFIX}current_user`, user.id);
+        })
+        .catch(() => {
+          localStorage.removeItem('trackflow_token');
+          setIsAuthenticated(false);
+        })
+        .finally(() => setAuthLoading(false));
+    } else {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  // ── Handle ?join=CODE from URL ──
+  useEffect(() => {
+    if (!isAuthenticated || authLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get('join');
+    if (joinCode) {
+      window.history.replaceState({}, '', window.location.pathname);
+      openInvitePreviewByCode(joinCode);
+    }
+  }, [isAuthenticated, authLoading]);
+
+  // ── Auth actions ──
+  const loginFn = async (email: string, password: string) => {
+    const result = await api.login({ email, password });
+    localStorage.setItem('trackflow_token', result.token);
+    setAuthToken(result.token);
+    setCurrentUserId(result.user.id);
+    localStorage.setItem(`${STORAGE_PREFIX}current_user`, result.user.id);
+    setIsAuthenticated(true);
+  };
+
+  const registerFn = async (name: string, email: string, password: string) => {
+    const result = await api.register({ name, email, password });
+    localStorage.setItem('trackflow_token', result.token);
+    setAuthToken(result.token);
+    setCurrentUserId(result.user.id);
+    localStorage.setItem(`${STORAGE_PREFIX}current_user`, result.user.id);
+    setIsAuthenticated(true);
+  };
+
+  const logout = () => {
+    localStorage.removeItem('trackflow_token');
+    localStorage.removeItem(`${STORAGE_PREFIX}current_user`);
+    setAuthToken(null);
+    setCurrentUserId('');
+    setIsAuthenticated(false);
+    queryClient.clear();
+  };
 
   const [currentRoute, setCurrentRoute] = useState<AppRoute>('home');
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
@@ -215,6 +285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [mySpaceTab, setMySpaceTab] = useState<MySpaceTab>('tasks');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [activeInvitePreview, setActiveInvitePreview] = useState<InvitePreviewData | null>(null);
+  const [justJoinedSpace, setJustJoinedSpace] = useState<Space | null>(null);
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCreateSpaceOpen, setIsCreateSpaceOpen] = useState(false);
@@ -223,10 +294,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isUploadFileOpen, setIsUploadFileOpen] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_PREFIX}current_user`, currentUserId);
-  }, [currentUserId]);
 
   // ── React Query: Data fetching ──
   const { data: users = [] } = useQuery<User[]>({
@@ -321,7 +388,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isPersonal: true,
       ownerId: currentUser.id,
       memberIds: [currentUser.id],
-      inviteCode: 'PERSONAL',
+      inviteCode: `PERSONAL_${currentUser.id.slice(-6)}`,
       createdAt: new Date().toISOString(),
     };
   }, [spaces, currentUser]);
@@ -393,7 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userId,
         role: userId === space.ownerId ? ('owner' as const) : ('member' as const),
         joinedAt: space.createdAt,
-        user: user || { id: userId, name: 'Team Member', email: 'member@forgeflow.app' },
+        user: user || { id: userId, name: 'Team Member', email: 'member@trackflow.app' },
       };
     });
   };
@@ -406,13 +473,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ── UI Actions ──
-  const switchCurrentUser = (userId: string) => {
-    setCurrentUserId(userId);
-    queryClient.invalidateQueries({ queryKey: ['spaces'] });
-    queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
-  };
-
   const switchSpace = (spaceId: string | null) => {
     if (!spaceId) {
       setSelectedSpaceId(null);
@@ -696,52 +756,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addSpaceMemberMutation.mutate({ spaceId, userId: email, role: 'member' });
   };
 
-  const joinSpaceByCode = (code: string): { success: boolean; space?: Space; message?: string } => {
+  const joinSpaceByCode = async (code: string): Promise<{ success: boolean; space?: Space; message?: string }> => {
     const cleanCode = code.trim().toUpperCase();
-    const existing = spaces.find(s => s.inviteCode.toUpperCase() === cleanCode);
 
-    if (existing && existing.memberIds.includes(currentUser.id)) {
-      switchSpace(existing.id);
-      setActiveInvitePreview(null);
-      return { success: true, space: existing, message: 'You are already a member of this space.' };
-    }
-
-    joinSpaceByCodeMutation.mutate(
-      { code: cleanCode, userId: currentUser.id },
-      {
-        onSuccess: (result) => {
-          if (result?.space) {
-            switchSpace(result.space.id);
-          }
-          setActiveInvitePreview(null);
-        },
+    if (activeInvitePreview) {
+      const existing = spaces.find(s => s.id === activeInvitePreview.space.id);
+      if (existing && existing.memberIds.includes(currentUser.id)) {
+        switchSpace(existing.id);
+        setActiveInvitePreview(null);
+        return { success: true, space: existing, message: 'You are already a member of this space.' };
       }
-    );
-
-    if (existing) {
-      return { success: true, space: existing };
     }
-    return { success: true };
+
+    try {
+      const result = await joinSpaceByCodeMutation.mutateAsync({ code: cleanCode, userId: currentUser.id });
+      if (result?.space) {
+        setJustJoinedSpace(result.space);
+        switchSpace(result.space.id);
+      }
+      setActiveInvitePreview(null);
+      return { success: true, space: result?.space };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Failed to join space' };
+    }
   };
 
-  const openInvitePreviewByCode = (code: string): boolean => {
+  const openInvitePreviewByCode = async (code: string): Promise<boolean> => {
     const cleanCode = code.trim().toUpperCase();
-    const space = spaces.find(s => s.inviteCode.toUpperCase() === cleanCode);
-    if (!space) return false;
 
-    const owner = getUserById(space.ownerId) || {
-      id: space.ownerId,
-      name: 'Project Lead',
-      email: 'lead@forgeflow.app',
-    };
+    // First try local spaces
+    const localSpace = spaces.find(s => s.inviteCode.toUpperCase() === cleanCode);
+    if (localSpace) {
+      const owner = getUserById(localSpace.ownerId) || {
+        id: localSpace.ownerId,
+        name: 'Project Lead',
+        email: 'lead@trackflow.app',
+      };
+      setActiveInvitePreview({
+        space: localSpace,
+        owner,
+        memberCount: localSpace.memberIds.length,
+      });
+      setCurrentRoute('join_preview');
+      return true;
+    }
 
-    setActiveInvitePreview({
-      space,
-      owner,
-      memberCount: space.memberIds.length,
-    });
-    setCurrentRoute('join_preview');
-    return true;
+    // Fall back to API preview (works for non-members too)
+    try {
+      const preview = await api.previewSpaceByCode(cleanCode);
+      setActiveInvitePreview({
+        space: preview.space,
+        owner: preview.owner,
+        memberCount: preview.memberCount,
+      });
+      setCurrentRoute('join_preview');
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const createTask = (params: {
@@ -939,15 +1011,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     queryClient.invalidateQueries();
   };
 
+  const dismissWelcome = () => setJustJoinedSpace(null);
+
   return (
     <AppContext.Provider
       value={{
         theme,
         toggleTheme,
         setTheme,
+        isAuthenticated,
+        isLoading: authLoading,
+        login: loginFn,
+        register: registerFn,
+        logout,
         currentUser,
         users,
-        switchCurrentUser,
         spaces,
         currentSpace,
         mySpaces,
@@ -963,6 +1041,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeInvitePreview,
         setActiveInvitePreview,
         openInvitePreviewByCode,
+        justJoinedSpace,
+        dismissWelcome,
         tasks,
         myTasks,
         spaceTasks,

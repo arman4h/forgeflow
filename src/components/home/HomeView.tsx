@@ -66,17 +66,24 @@ export const HomeView: React.FC = () => {
   return (
     <div
       id="home-view"
-      className="max-w-5xl mx-auto px-4 md:px-8 py-8 space-y-8 animate-in fade-in duration-200"
+      className="mx-auto px-4 md:px-8 py-8 space-y-8 animate-in fade-in duration-200"
     >
       {/* Header Greeting */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-200 dark:border-zinc-800">
         <div>
           <h1 className="text-2xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight">
-            {greetingTime()}, {currentUser.name.split(' ')[0]}
+            {greetingTime()}, {currentUser.name.split(" ")[0]}
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            You have <span className="font-semibold text-indigo-600 dark:text-indigo-400">{activeTasks.length} active tasks</span> across{' '}
-            <span className="font-semibold text-zinc-900 dark:text-zinc-100">{joinedSpaces.length} spaces</span>.
+            You have{" "}
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+              {activeTasks.length} active tasks
+            </span>{" "}
+            across{" "}
+            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {joinedSpaces.length} spaces
+            </span>
+            .
           </p>
         </div>
 
@@ -109,7 +116,10 @@ export const HomeView: React.FC = () => {
               <span>My Tasks</span>
             </h2>
             <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
-              <span className="font-semibold text-indigo-600 dark:text-indigo-400">{completedTasks.length}</span>/{myTasks.length} done
+              <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                {completedTasks.length}
+              </span>
+              /{myTasks.length} done
             </span>
           </div>
 
@@ -121,14 +131,16 @@ export const HomeView: React.FC = () => {
 
             {todayTasks.length === 0 ? (
               <div className="p-6 rounded-xl bg-white dark:bg-black border border-dashed border-zinc-200 dark:border-zinc-800 text-center text-xs text-zinc-500 space-y-1">
-                <p className="font-semibold text-zinc-800 dark:text-zinc-200">All clear for today!</p>
+                <p className="font-semibold text-zinc-800 dark:text-zinc-200">
+                  All clear for today!
+                </p>
                 <p>No urgent deadlines due right now.</p>
               </div>
             ) : (
               <div className="space-y-1.5">
-                {todayTasks.map(task => {
+                {todayTasks.map((task) => {
                   const space = getSpaceById(task.spaceId);
-                  const isDone = task.status === 'done';
+                  const isDone = task.status === "done";
 
                   return (
                     <div
@@ -147,24 +159,31 @@ export const HomeView: React.FC = () => {
                           )}
                         </button>
 
-                        <div className="min-w-0 cursor-pointer" onClick={() => setSelectedTaskId(task.id)}>
+                        <div
+                          className="min-w-0 cursor-pointer"
+                          onClick={() => setSelectedTaskId(task.id)}
+                        >
                           <div
                             className={`text-xs font-medium text-zinc-900 dark:text-zinc-100 ${
-                              isDone ? 'line-through text-zinc-400 dark:text-zinc-500' : ''
+                              isDone
+                                ? "line-through text-zinc-400 dark:text-zinc-500"
+                                : ""
                             }`}
                           >
                             {task.title}
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             <span
-                              onClick={e => {
+                              onClick={(e) => {
                                 e.stopPropagation();
                                 switchSpace(task.spaceId);
                               }}
                               className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1 transition-colors"
                             >
-                              <span>{space?.icon || '📁'}</span>
-                              <span className="truncate max-w-[140px]">{space?.name || 'Space'}</span>
+                              <span>{space?.icon || "📁"}</span>
+                              <span className="truncate max-w-[140px]">
+                                {space?.name || "Space"}
+                              </span>
                             </span>
 
                             {task.dueDate && (
@@ -200,9 +219,9 @@ export const HomeView: React.FC = () => {
                 Upcoming
               </div>
               <div className="space-y-1.5">
-                {upcomingTasks.map(task => {
+                {upcomingTasks.map((task) => {
                   const space = getSpaceById(task.spaceId);
-                  const isDone = task.status === 'done';
+                  const isDone = task.status === "done";
 
                   return (
                     <div
@@ -221,18 +240,29 @@ export const HomeView: React.FC = () => {
                           )}
                         </button>
 
-                        <div className="min-w-0 cursor-pointer" onClick={() => setSelectedTaskId(task.id)}>
+                        <div
+                          className="min-w-0 cursor-pointer"
+                          onClick={() => setSelectedTaskId(task.id)}
+                        >
                           <div
                             className={`text-xs font-medium text-zinc-900 dark:text-zinc-100 ${
-                              isDone ? 'line-through text-zinc-400 dark:text-zinc-500' : ''
+                              isDone
+                                ? "line-through text-zinc-400 dark:text-zinc-500"
+                                : ""
                             }`}
                           >
                             {task.title}
                           </div>
                           <div className="flex items-center gap-2 mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                            <span>{space?.icon || '📁'}</span>
-                            <span className="truncate max-w-[140px]">{space?.name}</span>
-                            {task.dueDate && <span className="font-mono text-[10px]">• {task.dueDate}</span>}
+                            <span>{space?.icon || "📁"}</span>
+                            <span className="truncate max-w-[140px]">
+                              {space?.name}
+                            </span>
+                            {task.dueDate && (
+                              <span className="font-mono text-[10px]">
+                                • {task.dueDate}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -265,7 +295,7 @@ export const HomeView: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              {joinedSpaces.map(space => {
+              {joinedSpaces.map((space) => {
                 const progress = getSpaceProgress(space.id);
                 return (
                   <div
@@ -275,14 +305,16 @@ export const HomeView: React.FC = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <span className="text-lg">{space.icon || '🚀'}</span>
+                        <span className="text-lg">{space.icon || "🚀"}</span>
                         <div>
                           <h3 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                             {space.name}
                           </h3>
                           <div className="text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-2 mt-0.5">
                             <span>{space.memberIds.length} members</span>
-                            {space.dueDate && <span>• Due {space.dueDate}</span>}
+                            {space.dueDate && (
+                              <span>• Due {space.dueDate}</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -293,7 +325,9 @@ export const HomeView: React.FC = () => {
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400 font-medium mb-1">
                         <span>Progress</span>
-                        <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">{progress}%</span>
+                        <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                          {progress}%
+                        </span>
                       </div>
                       <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-full overflow-hidden">
                         <div
@@ -324,7 +358,7 @@ export const HomeView: React.FC = () => {
 
                 return (
                   <div
-                    key={`${act.id || 'act'}_${idx}`}
+                    key={`${act.id || "act"}_${idx}`}
                     onClick={() => {
                       if (act.taskId) setSelectedTaskId(act.taskId);
                       else switchSpace(act.spaceId);
@@ -333,18 +367,22 @@ export const HomeView: React.FC = () => {
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">
-                        {space?.name || 'Space'}
+                        {space?.name || "Space"}
                       </span>
-                      <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{act.timestamp}</span>
+                      <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                        {act.timestamp}
+                      </span>
                     </div>
 
                     <div className="text-xs text-zinc-700 dark:text-zinc-300 mt-1">
-                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">{user?.name.split(' ')[0] || 'Member'}</span>{' '}
-                      {act.action === 'completed_task' && 'completed'}
-                      {act.action === 'commented' && 'commented on'}
-                      {act.action === 'assigned_task' && 'assigned'}
-                      {act.action === 'uploaded_file' && 'uploaded'}
-                      {act.action === 'created_task' && 'created'}{' '}
+                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                        {user?.name.split(" ")[0] || "Member"}
+                      </span>{" "}
+                      {act.action === "completed_task" && "completed"}
+                      {act.action === "commented" && "commented on"}
+                      {act.action === "assigned_task" && "assigned"}
+                      {act.action === "uploaded_file" && "uploaded"}
+                      {act.action === "created_task" && "created"}{" "}
                       <span className="font-semibold text-zinc-900 dark:text-zinc-100">
                         "{act.entityTitle}"
                       </span>
@@ -354,7 +392,9 @@ export const HomeView: React.FC = () => {
               })}
 
               {crossSpaceActivities.length === 0 && (
-                <div className="py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">No recent activity</div>
+                <div className="py-4 text-center text-xs text-zinc-400 dark:text-zinc-500">
+                  No recent activity
+                </div>
               )}
             </div>
           </div>

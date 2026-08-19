@@ -98,19 +98,6 @@ const SPACES = [
     created_at: '2026-08-05T14:00:00Z',
     updated_at: '2026-08-05T14:00:00Z',
   },
-  {
-    id: 'sp_personal',
-    name: 'My Space',
-    description: 'Personal study routines, portfolio tasks, and independent learning backlog.',
-    icon: '\uD83C\uDFE0',
-    category: 'personal',
-    is_personal: 1,
-    owner_id: 'usr_1',
-    invite_code: 'PERSONAL',
-    due_date: null,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-  },
 ];
 
 const SPACE_MEMBERS = [
@@ -130,8 +117,6 @@ const SPACE_MEMBERS = [
   { id: 'sm_11', space_id: 'sp_4', user_id: 'usr_4', role: 'owner', joined_at: '2026-08-05T14:00:00Z' },
   { id: 'sm_12', space_id: 'sp_4', user_id: 'usr_1', role: 'member', joined_at: '2026-08-06T15:00:00Z' },
   { id: 'sm_13', space_id: 'sp_4', user_id: 'usr_2', role: 'member', joined_at: '2026-08-07T12:00:00Z' },
-
-  { id: 'sm_14', space_id: 'sp_personal', user_id: 'usr_1', role: 'owner', joined_at: '2026-01-01T00:00:00Z' },
 ];
 
 const TASKS = [
@@ -291,45 +276,6 @@ const TASKS = [
     created_at: '2026-08-08T10:00:00Z',
     updated_at: '2026-08-15T18:00:00Z',
   },
-  {
-    id: 'tsk_13',
-    space_id: 'sp_personal',
-    title: 'Study Statistics & Probability Distribution',
-    description: 'Chapter 4 on Markov Chains and Bayesian Inference for upcoming midterm.',
-    status: 'todo',
-    priority: 'high',
-    assignee_id: 'usr_1',
-    reporter_id: 'usr_1',
-    due_date: '2026-08-19',
-    created_at: '2026-08-14T10:00:00Z',
-    updated_at: '2026-08-14T10:00:00Z',
-  },
-  {
-    id: 'tsk_14',
-    space_id: 'sp_personal',
-    title: 'Finish Portfolio Project Case Study',
-    description: 'Write up technical breakdown and interactive demo video for ForgeFlow redesign.',
-    status: 'in_progress',
-    priority: 'medium',
-    assignee_id: 'usr_1',
-    reporter_id: 'usr_1',
-    due_date: '2026-08-24',
-    created_at: '2026-08-12T12:00:00Z',
-    updated_at: '2026-08-16T14:00:00Z',
-  },
-  {
-    id: 'tsk_15',
-    space_id: 'sp_personal',
-    title: 'Read Machine Learning Chapter 8',
-    description: 'Deep neural networks and backpropagation mechanics.',
-    status: 'done',
-    priority: 'low',
-    assignee_id: 'usr_1',
-    reporter_id: 'usr_1',
-    due_date: '2026-08-11',
-    created_at: '2026-08-09T08:00:00Z',
-    updated_at: '2026-08-11T20:00:00Z',
-  },
 ];
 
 const CHECKLIST_ITEMS = [
@@ -355,9 +301,6 @@ const CHECKLIST_ITEMS = [
   { id: 'chk_14', task_id: 'tsk_9', title: 'Reproduce with slow network throttle', completed: 1 },
   { id: 'chk_15', task_id: 'tsk_9', title: 'Implement mutex lock for token renewal', completed: 0 },
   { id: 'chk_16', task_id: 'tsk_9', title: 'Add unit tests', completed: 0 },
-
-  { id: 'chk_17', task_id: 'tsk_13', title: 'Complete exercise set 4.1 - 4.5', completed: 0 },
-  { id: 'chk_18', task_id: 'tsk_13', title: 'Review lecture recordings', completed: 0 },
 ];
 
 const NOTES = [
@@ -618,6 +561,11 @@ const NOTIFICATIONS = [
 
 function seed() {
   initializeDatabase();
+
+  // Add password_hash column if not exists
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+  } catch (e) { /* column already exists */ }
 
   const insertUser = db.prepare(
     'INSERT OR IGNORE INTO users (id, name, email, avatar, title) VALUES (?, ?, ?, ?, ?)'

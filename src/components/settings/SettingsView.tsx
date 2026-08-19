@@ -4,8 +4,6 @@ import {
   User,
   Download,
   RotateCcw,
-  CheckCircle2,
-  Users,
   Moon,
   Sun,
 } from 'lucide-react';
@@ -14,13 +12,12 @@ import { Button } from '../ui/Button';
 export const SettingsView: React.FC = () => {
   const {
     currentUser,
-    users,
-    switchCurrentUser,
     joinedSpaces,
     tasks,
     resetAllData,
     theme,
     toggleTheme,
+    logout,
   } = useApp();
 
   const [resetSuccess, setResetSuccess] = useState(false);
@@ -36,7 +33,7 @@ export const SettingsView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `forgeflow-backup-${Date.now()}.json`;
+    a.download = `trackflow-backup-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -116,51 +113,6 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Demo Persona Switcher (Allows testing multi-member perspective) */}
-        <div className="bg-white dark:bg-black rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-4 shadow-2xs">
-          <div>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
-              <Users className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
-              <span>Switch Collaborator Persona</span>
-            </h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              Experience ForgeFlow from the perspective of different team members (Nadia, Rahim, Sakib, Dr. Sarah).
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
-            {users.map(u => {
-              const isSelected = u.id === currentUser.id;
-              return (
-                <button
-                  key={u.id}
-                  onClick={() => switchCurrentUser(u.id)}
-                  className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-900 dark:border-zinc-100'
-                      : 'bg-zinc-50 dark:bg-zinc-950/70 hover:bg-zinc-100 dark:hover:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
-                  }`}
-                >
-                  <img
-                    src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80'}
-                    alt={u.name}
-                    className="w-9 h-9 rounded-full object-cover shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1.5">
-                      <span>{u.name}</span>
-                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0" />}
-                    </div>
-                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
-                      {u.title?.split('&')[0] || u.email}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Data & Backup */}
         <div className="bg-white dark:bg-black rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-4 shadow-2xs">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -206,6 +158,20 @@ export const SettingsView: React.FC = () => {
               <span>{resetSuccess ? 'Reset Complete!' : 'Reset All Data'}</span>
             </Button>
           </div>
+        </div>
+
+        {/* Account */}
+        <div className="bg-white dark:bg-black rounded-xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-4 shadow-2xs">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            Account
+          </h2>
+          <Button
+            onClick={() => { logout(); }}
+            variant="destructive"
+            size="sm"
+          >
+            <span>Sign Out</span>
+          </Button>
         </div>
       </div>
     </div>

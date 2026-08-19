@@ -5,6 +5,13 @@ import type {
   TaskStatus, Priority, SpaceCategory,
 } from '../types';
 
+// Auth
+export const register = (data: { name: string; email: string; password: string }) =>
+  api.post<{ token: string; user: User }>('/auth/register', data);
+export const login = (data: { email: string; password: string }) =>
+  api.post<{ token: string; user: User }>('/auth/login', data);
+export const getMe = () => api.get<User>('/auth/me');
+
 // Users
 export const getUsers = () => api.get<User[]>('/users');
 export const getUser = (id: string) => api.get<User>(`/users/${id}`);

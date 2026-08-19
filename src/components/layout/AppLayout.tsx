@@ -6,6 +6,7 @@ import { HomeView } from '../home/HomeView';
 import { MySpaceView } from '../myspace/MySpaceView';
 import { SpaceDetailView } from '../space/SpaceDetailView';
 import { JoinPreviewPage } from '../invites/JoinPreviewPage';
+import { WelcomeToSpace } from '../invites/WelcomeToSpace';
 import { SettingsView } from '../settings/SettingsView';
 import { CreateSpaceModal } from '../modals/CreateSpaceModal';
 import { JoinSpaceModal } from '../modals/JoinSpaceModal';
@@ -16,7 +17,7 @@ import { TaskDetailModal } from '../tasks/TaskDetailModal';
 import { CommandPalette } from '../CommandPalette';
 
 export const AppLayout: React.FC = () => {
-  const { currentRoute } = useApp();
+  const { currentRoute, justJoinedSpace } = useApp();
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 font-sans antialiased">
@@ -37,6 +38,9 @@ export const AppLayout: React.FC = () => {
           {currentRoute === 'settings' && <SettingsView />}
         </main>
       </div>
+
+      {/* Welcome overlay after joining a space */}
+      {justJoinedSpace && <WelcomeToSpace />}
 
       {/* Modals & Dialogs */}
       <CreateSpaceModal />

@@ -358,7 +358,7 @@ export const MOCK_TASKS: Task[] = [
     id: 'tsk_14',
     spaceId: 'sp_personal',
     title: 'Finish Portfolio Project Case Study',
-    description: 'Write up technical breakdown and interactive demo video for ForgeFlow redesign.',
+    description: 'Write up technical breakdown and interactive demo video for TrackFlow redesign.',
     status: 'in_progress',
     priority: 'medium',
     assigneeId: 'usr_1',

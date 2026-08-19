@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '..', '..', 'forgeflow.db');
+const DB_PATH = path.join(__dirname, '..', '..', 'trackflow.db');
 
 const db = new Database(DB_PATH);
 
@@ -16,6 +16,7 @@ export function initializeDatabase() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
+      password_hash TEXT,
       avatar TEXT,
       title TEXT
     );

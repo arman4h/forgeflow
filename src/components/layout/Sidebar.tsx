@@ -11,13 +11,12 @@ import {
   Sun,
   Moon,
   X,
+  LogOut,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const {
     currentUser,
-    users,
-    switchCurrentUser,
     joinedSpaces,
     currentSpace,
     currentRoute,
@@ -31,6 +30,7 @@ export const Sidebar: React.FC = () => {
     toggleTheme,
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
+    logout,
   } = useApp();
 
   const pendingMyTasksCount = myTasks.filter(t => t.status !== 'done').length;
@@ -66,11 +66,11 @@ export const Sidebar: React.FC = () => {
           className="flex items-center gap-2.5 cursor-pointer group"
         >
           <div className="w-8 h-8 rounded-lg bg-cyan-600 dark:bg-cyan-500 text-white dark:text-zinc-950 flex items-center justify-center font-bold text-sm shadow-xs group-hover:scale-105 group-hover:bg-cyan-500 dark:group-hover:bg-cyan-400 transition-all">
-            F
+            T
           </div>
           <div>
             <span className="font-bold text-sm tracking-tight text-zinc-950 dark:text-zinc-50 flex items-center gap-1.5">
-              ForgeFlow
+              TrackFlow
             </span>
             <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block -mt-0.5 font-medium">
               Simple Spaces
@@ -278,23 +278,14 @@ export const Sidebar: React.FC = () => {
             >
               <Settings className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => logout()}
+              title="Sign out"
+              className="p-1.5 rounded-md text-zinc-500 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-        </div>
-
-        {/* Demo Switcher Pill */}
-        <div className="mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-          <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Viewing as:</span>
-          <select
-            value={currentUser.id}
-            onChange={e => switchCurrentUser(e.target.value)}
-            className="bg-white dark:bg-black text-zinc-800 dark:text-zinc-200 text-[11px] rounded px-1.5 py-0.5 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-cyan-500 dark:focus:border-cyan-400 cursor-pointer shadow-2xs"
-          >
-            {users.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.name.split(' ')[0]} ({u.title?.split(' ')[0] || 'User'})
-              </option>
-            ))}
-          </select>
         </div>
       </div>
     </div>

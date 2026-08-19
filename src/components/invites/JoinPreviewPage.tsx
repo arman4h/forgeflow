@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ShieldCheck, ArrowRight } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 export const JoinPreviewPage: React.FC = () => {
@@ -10,6 +10,9 @@ export const JoinPreviewPage: React.FC = () => {
     currentUser,
     setCurrentRoute,
   } = useApp();
+
+  const [joining, setJoining] = useState(false);
+  const [error, setError] = useState('');
 
   if (!activeInvitePreview) {
     return (
@@ -31,12 +34,37 @@ export const JoinPreviewPage: React.FC = () => {
     );
   }
 
-  const { space, owner, memberCount } = activeInvitePreview;
+  const space = activeInvitePreview.space;
+  const owner = activeInvitePreview.owner;
+  const memberCount = activeInvitePreview.memberCount ?? 0;
 
-  const handleJoin = () => {
-    const res = joinSpaceByCode(space.inviteCode);
+  if (!space || !owner) {
+    return (
+      <div className="max-w-md mx-auto my-20 p-8 bg-white dark:bg-black rounded-xl border border-zinc-200 dark:border-zinc-800 text-center space-y-4 shadow-2xs">
+        <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+          Invalid invitation data
+        </h2>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          This invitation link appears to be broken. Please request a new one.
+        </p>
+        <Button
+          onClick={() => setCurrentRoute('home')}
+          size="sm"
+          variant="default"
+        >
+          Go to Home
+        </Button>
+      </div>
+    );
+  }
+
+  const handleJoin = async () => {
+    setJoining(true);
+    setError('');
+    const res = await joinSpaceByCode(space.inviteCode);
     if (!res.success && res.message) {
-      alert(res.message);
+      setError(res.message);
+      setJoining(false);
     }
   };
 
@@ -80,16 +108,32 @@ export const JoinPreviewPage: React.FC = () => {
           </div>
         </div>
 
+        {error && (
+          <div className="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-xs text-red-700 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
         <div className="space-y-2.5 pt-2">
           <Button
             id="join-space-submit-btn"
             onClick={handleJoin}
+            disabled={joining}
             size="lg"
             variant="default"
             className="w-full flex items-center justify-center gap-2"
           >
-            <span>Join Space</span>
-            <ArrowRight className="w-4 h-4" />
+            {joining ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Joining...</span>
+              </>
+            ) : (
+              <>
+                <span>Join Space</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </Button>
           <div className="text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />

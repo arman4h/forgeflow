@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Compass, ArrowRight } from 'lucide-react';
+import { Compass, ArrowRight, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -14,14 +14,16 @@ export const JoinSpaceModal: React.FC = () => {
 
   const [codeOrUrl, setCodeOrUrl] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   if (!isJoinSpaceOpen) return null;
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    // Extract code from potential URL like forgeflow.app/join/ABC123
+    // Extract code from potential URL like trackflow.app/join/ABC123
     let cleanCode = codeOrUrl.trim();
     if (cleanCode.includes('/join/')) {
       cleanCode = cleanCode.split('/join/')[1].split('/')[0];
@@ -29,17 +31,20 @@ export const JoinSpaceModal: React.FC = () => {
 
     if (!cleanCode) {
       setError('Please enter an invite code or link');
+      setLoading(false);
       return;
     }
 
-    const opened = openInvitePreviewByCode(cleanCode);
+    const opened = await openInvitePreviewByCode(cleanCode);
     if (!opened) {
-      setError('Invalid or unknown invite code. Try: CSE320, FYP2026, TECHMVP, or DSCLUB');
+      setError('Invalid or unknown invite code. Please check and try again.');
+      setLoading(false);
       return;
     }
 
     setIsJoinSpaceOpen(false);
     setCodeOrUrl('');
+    setLoading(false);
   };
 
   return (
@@ -57,7 +62,7 @@ export const JoinSpaceModal: React.FC = () => {
         <div>
           <Input
             label="Invite Code or Link"
-            placeholder="e.g. CSE320 or forgeflow.app/join/FYP2026"
+            placeholder="e.g. CSE320 or ?join=FYP2026"
             value={codeOrUrl}
             onChange={e => {
               setCodeOrUrl(e.target.value);
@@ -100,9 +105,19 @@ export const JoinSpaceModal: React.FC = () => {
             type="submit"
             size="sm"
             variant="default"
+            disabled={loading}
           >
-            <span>Preview & Join</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            {loading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Looking up...</span>
+              </>
+            ) : (
+              <>
+                <span>Preview & Join</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            )}
           </Button>
         </div>
       </form>

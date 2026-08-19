@@ -79,7 +79,7 @@ spaceRoutes.get('/preview/:code', asyncHandler(async (req, res) => {
   ).get(space.id) as any;
 
   res.json({
-    ...space,
+    space,
     owner,
     memberCount: memberCount.count,
   });
