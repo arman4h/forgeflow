@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import db from '../db/connection.js';
+import { queryMany } from '../db/connection.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const activityRoutes = Router();
@@ -21,12 +21,12 @@ activityRoutes.get('/', asyncHandler(async (req, res) => {
   const { spaceId } = req.query;
 
   if (spaceId) {
-    const activities = db.prepare('SELECT * FROM activities WHERE space_id = ? ORDER BY rowid DESC').all(spaceId);
+    const activities = await queryMany('SELECT * FROM activities WHERE space_id = $1 ORDER BY timestamp DESC', [spaceId]);
     res.json(activities.map(mapActivity));
     return;
   }
 
-  const activities = db.prepare('SELECT * FROM activities ORDER BY rowid DESC').all();
+  const activities = await queryMany('SELECT * FROM activities ORDER BY timestamp DESC');
   res.json(activities.map(mapActivity));
 }));
 
@@ -38,7 +38,7 @@ activityRoutes.get('/feed', asyncHandler(async (req, res) => {
     return;
   }
 
-  const spaceRows = db.prepare('SELECT space_id FROM space_members WHERE user_id = ?').all(userId) as any[];
+  const spaceRows = await queryMany('SELECT space_id FROM space_members WHERE user_id = $1', [userId]) as any[];
   const spaceIds = spaceRows.map((r) => r.space_id);
 
   if (spaceIds.length === 0) {
@@ -46,8 +46,8 @@ activityRoutes.get('/feed', asyncHandler(async (req, res) => {
     return;
   }
 
-  const placeholders = spaceIds.map(() => '?').join(', ');
-  const activities = db.prepare(`SELECT * FROM activities WHERE space_id IN (${placeholders}) ORDER BY rowid DESC`).all(...spaceIds);
+  const placeholders = spaceIds.map((_, i) => `$${i + 1}`).join(', ');
+  const activities = await queryMany(`SELECT * FROM activities WHERE space_id IN (${placeholders}) ORDER BY timestamp DESC`, spaceIds);
 
   res.json(activities.map(mapActivity));
 }));

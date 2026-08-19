@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { initializeDatabase } from './db/connection.js';
@@ -20,13 +21,11 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000', credentials: true }));
 app.use(express.json());
 
-// Public routes
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 app.use('/api/auth', authRoutes);
 
-// Protected routes
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/spaces', authMiddleware, spaceRoutes);
 app.use('/api/tasks', authMiddleware, taskRoutes);
@@ -39,10 +38,16 @@ app.use('/api/notifications', authMiddleware, notificationRoutes);
 
 app.use(errorHandler);
 
-initializeDatabase();
+async function start() {
+  await initializeDatabase();
+  app.listen(PORT, () => {
+    console.log(`TrackFlow API running on http://localhost:${PORT}`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`TrackFlow API running on http://localhost:${PORT}`);
+start().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
 
 export default app;

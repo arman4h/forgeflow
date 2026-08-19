@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
-import db from '../db/connection.js';
+import { query, queryOne, queryMany } from '../db/connection.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const fileRoutes = Router();
@@ -23,9 +23,9 @@ fileRoutes.get('/', asyncHandler(async (req, res) => {
 
   let rows;
   if (spaceId) {
-    rows = db.prepare('SELECT * FROM files WHERE space_id = ? ORDER BY uploaded_at DESC').all(spaceId);
+    rows = await queryMany('SELECT * FROM files WHERE space_id = $1 ORDER BY uploaded_at DESC', [spaceId]);
   } else {
-    rows = db.prepare('SELECT * FROM files ORDER BY uploaded_at DESC').all();
+    rows = await queryMany('SELECT * FROM files ORDER BY uploaded_at DESC');
   }
 
   res.json(rows.map(mapFile));
@@ -36,26 +36,27 @@ fileRoutes.post('/', asyncHandler(async (req, res) => {
   const id = `fil_${nanoid()}`;
   const now = new Date().toISOString();
 
-  db.prepare(
-    'INSERT INTO files (id, space_id, name, url, type, size, uploaded_by_id, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, spaceId, name, url, type ?? 'document', size ?? null, uploadedById, now);
+  await query(
+    'INSERT INTO files (id, space_id, name, url, type, size, uploaded_by_id, uploaded_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+    [id, spaceId, name, url, type ?? 'document', size ?? null, uploadedById, now]
+  );
 
-  const activityId = `act_${nanoid()}`;
-  db.prepare(
-    'INSERT INTO activities (id, space_id, user_id, action, entity_title, details, timestamp, task_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(activityId, spaceId, uploadedById, 'uploaded_file', name, 'Uploaded file to Files', now, null);
+  await query(
+    'INSERT INTO activities (id, space_id, user_id, action, entity_title, details, timestamp, task_id) VALUES ($1, $2, $3, $4, $5, $6, $7, null)',
+    [`act_${nanoid()}`, spaceId, uploadedById, 'uploaded_file', name, 'Uploaded file to Files', now]
+  );
 
-  const row = db.prepare('SELECT * FROM files WHERE id = ?').get(id);
+  const row = await queryOne('SELECT * FROM files WHERE id = $1', [id]);
   res.status(201).json(mapFile(row));
 }));
 
 fileRoutes.delete('/:id', asyncHandler(async (req, res) => {
-  const existing = db.prepare('SELECT * FROM files WHERE id = ?').get(req.params.id);
+  const existing = await queryOne('SELECT * FROM files WHERE id = $1', [req.params.id]);
   if (!existing) {
     res.status(404).json({ error: 'File not found' });
     return;
   }
 
-  db.prepare('DELETE FROM files WHERE id = ?').run(req.params.id);
+  await query('DELETE FROM files WHERE id = $1', [req.params.id]);
   res.json({ message: 'File deleted' });
 }));

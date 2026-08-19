@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
-import db from '../db/connection.js';
+import { query, queryOne, queryMany } from '../db/connection.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import {
+  getSpaceRole, getSpaceSettings, canCreateTask, canEditTask,
+  canChangeStatus, canDeleteTask, canAssignTask,
+} from '../middleware/permissions.js';
 
 const router = Router();
 
@@ -26,276 +30,252 @@ function mapChecklistItem(row: any) {
     id: row.id,
     taskId: row.task_id,
     title: row.title,
-    completed: row.completed === 1,
+    completed: row.completed === true,
   };
 }
 
-function getChecklistItems(taskId: string) {
-  const rows = db.prepare('SELECT * FROM checklist_items WHERE task_id = ?').all(taskId);
+async function getChecklistItems(taskId: string) {
+  const rows = await queryMany('SELECT * FROM checklist_items WHERE task_id = $1', [taskId]);
   return rows.map(mapChecklistItem);
 }
 
-function getTaskWithChecklist(row: any) {
-  return { ...mapTask(row), checklist: getChecklistItems(row.id) };
+async function getTaskWithChecklist(row: any) {
+  return { ...mapTask(row), checklist: await getChecklistItems(row.id) };
 }
 
-// GET /           -> Get tasks
-router.get(
-  '/',
-  asyncHandler(async (req, res) => {
-    const { spaceId, userId } = req.query;
+router.get('/', asyncHandler(async (req, res) => {
+  const { spaceId, userId } = req.query;
 
-    let query = 'SELECT * FROM tasks';
-    const conditions: string[] = [];
-    const params: any[] = [];
+  let queryStr = 'SELECT * FROM tasks';
+  const conditions: string[] = [];
+  const params: any[] = [];
 
-    if (spaceId) {
-      conditions.push('space_id = ?');
-      params.push(spaceId);
-    }
-    if (userId) {
-      conditions.push('assignee_id = ?');
-      params.push(userId);
-    }
+  if (spaceId) {
+    conditions.push(`space_id = $${params.length + 1}`);
+    params.push(spaceId);
+  }
+  if (userId) {
+    conditions.push(`assignee_id = $${params.length + 1}`);
+    params.push(userId);
+  }
 
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
-    }
+  if (conditions.length > 0) {
+    queryStr += ' WHERE ' + conditions.join(' AND ');
+  }
 
-    query += ' ORDER BY created_at DESC';
+  queryStr += ' ORDER BY created_at DESC';
 
-    const tasks = db.prepare(query).all(...params);
-    res.json(tasks.map(getTaskWithChecklist));
-  })
-);
+  const tasks = await queryMany(queryStr, params);
+  const tasksWithChecklist = await Promise.all(tasks.map(getTaskWithChecklist));
+  res.json(tasksWithChecklist);
+}));
 
-// GET /:id        -> Get single task
-router.get(
-  '/:id',
-  asyncHandler(async (req, res) => {
-    const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
-    if (!row) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-    res.json(getTaskWithChecklist(row));
-  })
-);
+router.get('/:id', asyncHandler(async (req, res) => {
+  const row = await queryOne('SELECT * FROM tasks WHERE id = $1', [req.params.id]);
+  if (!row) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+  res.json(await getTaskWithChecklist(row));
+}));
 
-// POST /          -> Create task
-router.post(
-  '/',
-  asyncHandler(async (req, res) => {
-    const { spaceId, title, description, priority, status, assigneeId, reporterId, dueDate, checklist } = req.body;
-    const now = new Date().toISOString();
-    const id = nanoid();
+router.post('/', asyncHandler(async (req, res) => {
+  const { spaceId, title, description, priority, status, assigneeId, reporterId, dueDate, checklist } = req.body;
 
-    const insertTask = db.prepare(`
-      INSERT INTO tasks (id, space_id, title, description, priority, status, assignee_id, reporter_id, due_date, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  const role = await getSpaceRole(reporterId, spaceId);
+  const settings = await getSpaceSettings(spaceId);
 
-    const insertChecklist = db.prepare(`
-      INSERT INTO checklist_items (id, task_id, title, completed)
-      VALUES (?, ?, ?, 0)
-    `);
+  if (!canCreateTask(role, settings)) {
+    res.status(403).json({ error: 'You do not have permission to create tasks in this space' });
+    return;
+  }
 
-    const insertActivity = db.prepare(`
-      INSERT INTO activities (id, space_id, user_id, action, entity_title, details, timestamp, task_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  if (assigneeId && !canAssignTask(role)) {
+    res.status(403).json({ error: 'You do not have permission to assign tasks' });
+    return;
+  }
 
-    const insertNotification = db.prepare(`
-      INSERT INTO notifications (id, user_id, space_id, task_id, title, message, type, read, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
-    `);
+  const now = new Date().toISOString();
+  const id = nanoid();
 
-    const runAll = db.transaction(() => {
-      insertTask.run(id, spaceId, title, description || null, priority || 'medium', status || 'todo', assigneeId || null, reporterId, dueDate || null, now, now);
+  await query(
+    `INSERT INTO tasks (id, space_id, title, description, priority, status, assignee_id, reporter_id, due_date, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [id, spaceId, title, description || null, priority || 'medium', status || 'todo', assigneeId || null, reporterId, dueDate || null, now, now]
+  );
 
-      if (Array.isArray(checklist)) {
-        for (const item of checklist) {
-          insertChecklist.run(nanoid(), id, typeof item === 'string' ? item : item.title);
-        }
-      }
-
-      insertActivity.run(nanoid(), spaceId, reporterId, 'created', title, `created task "${title}"`, now, id);
-
-      if (assigneeId && assigneeId !== reporterId) {
-        insertNotification.run(
-          nanoid(),
-          assigneeId,
-          spaceId,
-          id,
-          'New task assigned',
-          `You have been assigned to "${title}"`,
-          'task_assigned'
-        );
-      }
-    });
-
-    runAll();
-
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-    res.status(201).json(getTaskWithChecklist(task));
-  })
-);
-
-// PUT /:id        -> Update task
-router.put(
-  '/:id',
-  asyncHandler(async (req, res) => {
-    const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id) as any;
-    if (!existing) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-
-    const { title, description, priority, status, assigneeId, reporterId, dueDate } = req.body;
-    const now = new Date().toISOString();
-
-    const updatedFields = {
-      title: title ?? existing.title,
-      description: description !== undefined ? description : existing.description,
-      priority: priority ?? existing.priority,
-      status: status ?? existing.status,
-      assignee_id: assigneeId !== undefined ? assigneeId : existing.assignee_id,
-      reporter_id: reporterId ?? existing.reporter_id,
-      due_date: dueDate !== undefined ? dueDate : existing.due_date,
-      updated_at: now,
-    };
-
-    db.prepare(`
-      UPDATE tasks SET title = ?, description = ?, priority = ?, status = ?, assignee_id = ?, reporter_id = ?, due_date = ?, updated_at = ?
-      WHERE id = ?
-    `).run(
-      updatedFields.title,
-      updatedFields.description,
-      updatedFields.priority,
-      updatedFields.status,
-      updatedFields.assignee_id,
-      updatedFields.reporter_id,
-      updatedFields.due_date,
-      updatedFields.updated_at,
-      req.params.id
-    );
-
-    if (status && status !== existing.status) {
-      db.prepare(`
-        INSERT INTO activities (id, space_id, user_id, action, entity_title, details, timestamp, task_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        nanoid(),
-        existing.space_id,
-        existing.reporter_id,
-        'status_changed',
-        existing.title,
-        `status changed from "${existing.status}" to "${status}"`,
-        now,
-        existing.id
+  if (Array.isArray(checklist)) {
+    for (const item of checklist) {
+      await query(
+        'INSERT INTO checklist_items (id, task_id, title, completed) VALUES ($1, $2, $3, false)',
+        [nanoid(), id, typeof item === 'string' ? item : item.title]
       );
     }
+  }
 
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
-    res.json(getTaskWithChecklist(task));
-  })
-);
+  await query(
+    `INSERT INTO activities (id, space_id, user_id, action, entity_title, details, timestamp, task_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [nanoid(), spaceId, reporterId, 'created', title, `created task "${title}"`, now, id]
+  );
 
-// DELETE /:id     -> Delete task
-router.delete(
-  '/:id',
-  asyncHandler(async (req, res) => {
-    const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
-    if (result.changes === 0) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-    res.status(204).send();
-  })
-);
-
-// PATCH /:id/status -> Change status
-router.patch(
-  '/:id/status',
-  asyncHandler(async (req, res) => {
-    const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id) as any;
-    if (!existing) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-
-    const { status } = req.body;
-    const now = new Date().toISOString();
-
-    db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
-
-    db.prepare(`
-      INSERT INTO activities (id, space_id, user_id, action, entity_title, details, timestamp, task_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      nanoid(),
-      existing.space_id,
-      existing.reporter_id,
-      'status_changed',
-      existing.title,
-      `status changed from "${existing.status}" to "${status}"`,
-      now,
-      existing.id
+  if (assigneeId && assigneeId !== reporterId) {
+    await query(
+      `INSERT INTO notifications (id, user_id, space_id, task_id, title, message, type, read, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8)`,
+      [nanoid(), assigneeId, spaceId, id, 'New task assigned', `You have been assigned to "${title}"`, 'task_assigned', now]
     );
+  }
 
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
-    res.json(getTaskWithChecklist(task));
-  })
-);
+  const task = await queryOne('SELECT * FROM tasks WHERE id = $1', [id]);
+  res.status(201).json(await getTaskWithChecklist(task));
+}));
 
-// POST /:id/checklist      -> Add checklist item
-router.post(
-  '/:id/checklist',
-  asyncHandler(async (req, res) => {
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
-    if (!task) {
-      res.status(404).json({ error: 'Task not found' });
+router.put('/:id', asyncHandler(async (req, res) => {
+  const existing = await queryOne('SELECT * FROM tasks WHERE id = $1', [req.params.id]) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+
+  const userId = req.body._userId;
+  const role = await getSpaceRole(userId, existing.space_id);
+  const settings = await getSpaceSettings(existing.space_id);
+
+  if (!canEditTask(role, existing, userId, settings)) {
+    res.status(403).json({ error: 'You do not have permission to edit this task' });
+    return;
+  }
+
+  const { title, description, priority, status, assigneeId, reporterId, dueDate } = req.body;
+
+  if (assigneeId !== undefined && assigneeId !== existing.assignee_id) {
+    if (!canAssignTask(role)) {
+      res.status(403).json({ error: 'You do not have permission to assign tasks' });
       return;
     }
+  }
 
-    const { title } = req.body;
-    const id = nanoid();
-    db.prepare('INSERT INTO checklist_items (id, task_id, title, completed) VALUES (?, ?, ?, 0)').run(id, req.params.id, title);
+  if (title !== undefined && title !== existing.title && !canEditTask(role, existing, userId, settings)) {
+    res.status(403).json({ error: 'You do not have permission to edit task details' });
+    return;
+  }
 
-    const item = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id);
-    res.status(201).json(mapChecklistItem(item));
-  })
-);
+  const now = new Date().toISOString();
 
-// PATCH /:id/checklist/:itemId -> Toggle checklist item
-router.patch(
-  '/:id/checklist/:itemId',
-  asyncHandler(async (req, res) => {
-    const existing = db.prepare('SELECT * FROM checklist_items WHERE id = ? AND task_id = ?').get(req.params.itemId, req.params.id) as any;
-    if (!existing) {
-      res.status(404).json({ error: 'Checklist item not found' });
-      return;
-    }
+  const updatedFields = {
+    title: title ?? existing.title,
+    description: description !== undefined ? description : existing.description,
+    priority: priority ?? existing.priority,
+    status: status ?? existing.status,
+    assignee_id: assigneeId !== undefined ? assigneeId : existing.assignee_id,
+    reporter_id: reporterId ?? existing.reporter_id,
+    due_date: dueDate !== undefined ? dueDate : existing.due_date,
+    updated_at: now,
+  };
 
-    const newCompleted = existing.completed === 0 ? 1 : 0;
-    db.prepare('UPDATE checklist_items SET completed = ? WHERE id = ?').run(newCompleted, req.params.itemId);
+  await query(
+    `UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, assignee_id = $5, reporter_id = $6, due_date = $7, updated_at = $8
+     WHERE id = $9`,
+    [updatedFields.title, updatedFields.description, updatedFields.priority, updatedFields.status, updatedFields.assignee_id, updatedFields.reporter_id, updatedFields.due_date, updatedFields.updated_at, req.params.id]
+  );
 
-    const item = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(req.params.itemId);
-    res.json(mapChecklistItem(item));
-  })
-);
+  if (status && status !== existing.status) {
+    await query(
+      `INSERT INTO activities (id, space_id, user_id, action, entity_title, details, timestamp, task_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [nanoid(), existing.space_id, userId, 'status_changed', existing.title, `status changed from "${existing.status}" to "${status}"`, now, existing.id]
+    );
+  }
 
-// DELETE /:id/checklist/:itemId -> Remove checklist item
-router.delete(
-  '/:id/checklist/:itemId',
-  asyncHandler(async (req, res) => {
-    const result = db.prepare('DELETE FROM checklist_items WHERE id = ? AND task_id = ?').run(req.params.itemId, req.params.id);
-    if (result.changes === 0) {
-      res.status(404).json({ error: 'Checklist item not found' });
-      return;
-    }
-    res.status(204).send();
-  })
-);
+  const task = await queryOne('SELECT * FROM tasks WHERE id = $1', [req.params.id]);
+  res.json(await getTaskWithChecklist(task));
+}));
+
+router.delete('/:id', asyncHandler(async (req, res) => {
+  const existing = await queryOne('SELECT * FROM tasks WHERE id = $1', [req.params.id]) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+
+  const userId = req.query.userId as string || req.body._userId;
+  const role = await getSpaceRole(userId, existing.space_id);
+
+  if (!canDeleteTask(role)) {
+    res.status(403).json({ error: 'You do not have permission to delete tasks' });
+    return;
+  }
+
+  await query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
+  res.status(204).send();
+}));
+
+router.patch('/:id/status', asyncHandler(async (req, res) => {
+  const existing = await queryOne('SELECT * FROM tasks WHERE id = $1', [req.params.id]) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+
+  const { status, userId } = req.body;
+  const role = await getSpaceRole(userId, existing.space_id);
+
+  if (!canChangeStatus(role, existing, userId)) {
+    res.status(403).json({ error: 'You do not have permission to change this task status' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+
+  await query('UPDATE tasks SET status = $1, updated_at = $2 WHERE id = $3', [status, now, req.params.id]);
+
+  await query(
+    `INSERT INTO activities (id, space_id, user_id, action, entity_title, details, timestamp, task_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [nanoid(), existing.space_id, userId, 'status_changed', existing.title, `status changed from "${existing.status}" to "${status}"`, now, existing.id]
+  );
+
+  const task = await queryOne('SELECT * FROM tasks WHERE id = $1', [req.params.id]);
+  res.json(await getTaskWithChecklist(task));
+}));
+
+router.post('/:id/checklist', asyncHandler(async (req, res) => {
+  const task = await queryOne('SELECT * FROM tasks WHERE id = $1', [req.params.id]);
+  if (!task) {
+    res.status(404).json({ error: 'Task not found' });
+    return;
+  }
+
+  const { title } = req.body;
+  const id = nanoid();
+  await query('INSERT INTO checklist_items (id, task_id, title, completed) VALUES ($1, $2, $3, false)', [id, req.params.id, title]);
+
+  const item = await queryOne('SELECT * FROM checklist_items WHERE id = $1', [id]);
+  res.status(201).json(mapChecklistItem(item));
+}));
+
+router.patch('/:id/checklist/:itemId', asyncHandler(async (req, res) => {
+  const existing = await queryOne('SELECT * FROM checklist_items WHERE id = $1 AND task_id = $2', [req.params.itemId, req.params.id]) as any;
+  if (!existing) {
+    res.status(404).json({ error: 'Checklist item not found' });
+    return;
+  }
+
+  const newCompleted = existing.completed === false;
+  await query('UPDATE checklist_items SET completed = $1 WHERE id = $2', [newCompleted, req.params.itemId]);
+
+  const item = await queryOne('SELECT * FROM checklist_items WHERE id = $1', [req.params.itemId]);
+  res.json(mapChecklistItem(item));
+}));
+
+router.delete('/:id/checklist/:itemId', asyncHandler(async (req, res) => {
+  const result = await query('DELETE FROM checklist_items WHERE id = $1 AND task_id = $2', [req.params.itemId, req.params.id]);
+  if (result.rowCount === 0) {
+    res.status(404).json({ error: 'Checklist item not found' });
+    return;
+  }
+  res.status(204).send();
+}));
 
 export { router as taskRoutes };

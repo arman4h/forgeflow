@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
-import db from '../db/connection.js';
+import { query, queryOne, queryMany } from '../db/connection.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const milestoneRoutes = Router();
@@ -22,16 +22,16 @@ milestoneRoutes.get('/', asyncHandler(async (req, res) => {
 
   let rows;
   if (spaceId) {
-    rows = db.prepare('SELECT * FROM milestones WHERE space_id = ? ORDER BY due_date ASC').all(spaceId);
+    rows = await queryMany('SELECT * FROM milestones WHERE space_id = $1 ORDER BY due_date ASC', [spaceId]);
   } else {
-    rows = db.prepare('SELECT * FROM milestones ORDER BY due_date ASC').all();
+    rows = await queryMany('SELECT * FROM milestones ORDER BY due_date ASC');
   }
 
   res.json(rows.map(mapMilestone));
 }));
 
 milestoneRoutes.get('/:id', asyncHandler(async (req, res) => {
-  const row = db.prepare('SELECT * FROM milestones WHERE id = ?').get(req.params.id);
+  const row = await queryOne('SELECT * FROM milestones WHERE id = $1', [req.params.id]);
   if (!row) {
     res.status(404).json({ error: 'Milestone not found' });
     return;
@@ -43,16 +43,17 @@ milestoneRoutes.post('/', asyncHandler(async (req, res) => {
   const { spaceId, title, description, dueDate, targetDeliverable } = req.body;
   const id = `ms_${nanoid()}`;
 
-  db.prepare(
-    'INSERT INTO milestones (id, space_id, title, description, due_date, status, target_deliverable) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, spaceId, title, description ?? null, dueDate, 'upcoming', targetDeliverable ?? null);
+  await query(
+    'INSERT INTO milestones (id, space_id, title, description, due_date, status, target_deliverable) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+    [id, spaceId, title, description ?? null, dueDate, 'upcoming', targetDeliverable ?? null]
+  );
 
-  const row = db.prepare('SELECT * FROM milestones WHERE id = ?').get(id);
+  const row = await queryOne('SELECT * FROM milestones WHERE id = $1', [id]);
   res.status(201).json(mapMilestone(row));
 }));
 
 milestoneRoutes.put('/:id', asyncHandler(async (req, res) => {
-  const existing = db.prepare('SELECT * FROM milestones WHERE id = ?').get(req.params.id);
+  const existing = await queryOne('SELECT * FROM milestones WHERE id = $1', [req.params.id]) as any;
   if (!existing) {
     res.status(404).json({ error: 'Milestone not found' });
     return;
@@ -60,28 +61,29 @@ milestoneRoutes.put('/:id', asyncHandler(async (req, res) => {
 
   const { title, description, dueDate, status, targetDeliverable } = req.body;
 
-  db.prepare(
-    'UPDATE milestones SET title = ?, description = ?, due_date = ?, status = ?, target_deliverable = ? WHERE id = ?'
-  ).run(
-    title ?? (existing as any).title,
-    description !== undefined ? description : (existing as any).description,
-    dueDate ?? (existing as any).due_date,
-    status ?? (existing as any).status,
-    targetDeliverable !== undefined ? targetDeliverable : (existing as any).target_deliverable,
-    req.params.id
+  await query(
+    'UPDATE milestones SET title = $1, description = $2, due_date = $3, status = $4, target_deliverable = $5 WHERE id = $6',
+    [
+      title ?? existing.title,
+      description !== undefined ? description : existing.description,
+      dueDate ?? existing.due_date,
+      status ?? existing.status,
+      targetDeliverable !== undefined ? targetDeliverable : existing.target_deliverable,
+      req.params.id,
+    ]
   );
 
-  const row = db.prepare('SELECT * FROM milestones WHERE id = ?').get(req.params.id);
+  const row = await queryOne('SELECT * FROM milestones WHERE id = $1', [req.params.id]);
   res.json(mapMilestone(row));
 }));
 
 milestoneRoutes.delete('/:id', asyncHandler(async (req, res) => {
-  const existing = db.prepare('SELECT * FROM milestones WHERE id = ?').get(req.params.id);
+  const existing = await queryOne('SELECT * FROM milestones WHERE id = $1', [req.params.id]);
   if (!existing) {
     res.status(404).json({ error: 'Milestone not found' });
     return;
   }
 
-  db.prepare('DELETE FROM milestones WHERE id = ?').run(req.params.id);
+  await query('DELETE FROM milestones WHERE id = $1', [req.params.id]);
   res.json({ message: 'Milestone deleted' });
 }));

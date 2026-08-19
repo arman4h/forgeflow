@@ -1,17 +1,34 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import pg from 'pg';
+const { Pool } = pg;
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '..', '..', 'trackflow.db');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
 
-const db = new Database(DB_PATH);
+pool.on('error', (err) => {
+  console.error('Unexpected pool error:', err.message);
+});
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+export async function query(text: string, params?: any[]): Promise<pg.QueryResult> {
+  return pool.query(text, params);
+}
 
-export function initializeDatabase() {
-  db.exec(`
+export async function queryOne<T extends pg.QueryResultRow = any>(text: string, params?: any[]): Promise<T | null> {
+  const result = await pool.query<T>(text, params);
+  return result.rows[0] ?? null;
+}
+
+export async function queryMany<T extends pg.QueryResultRow = any>(text: string, params?: any[]): Promise<T[]> {
+  const result = await pool.query<T>(text, params);
+  return result.rows;
+}
+
+export async function initializeDatabase() {
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -27,7 +44,7 @@ export function initializeDatabase() {
       description TEXT,
       icon TEXT DEFAULT '🚀',
       category TEXT NOT NULL DEFAULT 'other',
-      is_personal INTEGER DEFAULT 0,
+      is_personal BOOLEAN DEFAULT FALSE,
       owner_id TEXT NOT NULL REFERENCES users(id),
       invite_code TEXT NOT NULL UNIQUE,
       due_date TEXT,
@@ -62,7 +79,7 @@ export function initializeDatabase() {
       id TEXT PRIMARY KEY,
       task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
-      completed INTEGER DEFAULT 0
+      completed BOOLEAN DEFAULT FALSE
     );
 
     CREATE TABLE IF NOT EXISTS notes (
@@ -70,7 +87,7 @@ export function initializeDatabase() {
       space_id TEXT NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
       content TEXT NOT NULL DEFAULT '',
-      is_pinned INTEGER DEFAULT 0,
+      is_pinned BOOLEAN DEFAULT FALSE,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -124,10 +141,18 @@ export function initializeDatabase() {
       title TEXT NOT NULL,
       message TEXT NOT NULL,
       type TEXT NOT NULL,
-      read INTEGER DEFAULT 0,
+      read BOOLEAN DEFAULT FALSE,
       created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS space_settings (
+      space_id TEXT NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+      setting_key TEXT NOT NULL,
+      setting_value TEXT NOT NULL DEFAULT 'false',
+      PRIMARY KEY (space_id, setting_key)
     );
   `);
 }
 
-export default db;
+export { pool };
+export default pool;

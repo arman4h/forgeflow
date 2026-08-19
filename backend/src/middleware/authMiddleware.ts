@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../routes/auth.js';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -12,12 +11,21 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     return;
   }
 
-  const payload = verifyToken(authHeader.slice(7));
-  if (!payload) {
+  const token = authHeader.slice(7);
+  let userId: string;
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString();
+    userId = decoded.split(':')[0];
+  } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }
 
-  req.userId = payload.userId;
+  if (!userId) {
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
+
+  req.userId = userId;
   next();
 }

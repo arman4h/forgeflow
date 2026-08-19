@@ -1,0 +1,638 @@
+import { User, Space, SpaceMember, Task, SpaceFile, Comment, Activity, Notification, Note, Milestone } from '../types';
+
+export const CURRENT_USER_ID = 'usr_1';
+
+export const MOCK_USERS: User[] = [
+  {
+    id: 'usr_1',
+    name: 'Arman Khan',
+    email: 'arman@university.edu',
+    title: 'Computer Science Student & Lead Developer',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'usr_2',
+    name: 'Nadia Rahman',
+    email: 'nadia@university.edu',
+    title: 'Research Fellow & UI Designer',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'usr_3',
+    name: 'Rahim Chowdhury',
+    email: 'rahim@techcorp.io',
+    title: 'Backend Systems Engineer',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'usr_4',
+    name: 'Sakib Al-Hasan',
+    email: 'sakib@datascience.club',
+    title: 'Data Analyst & Event Coordinator',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'usr_5',
+    name: 'Dr. Sarah Jenkins',
+    email: 's.jenkins@university.edu',
+    title: 'Thesis Supervisor & Advisor',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'usr_6',
+    name: 'Liam Vance',
+    email: 'liam@techcorp.io',
+    title: 'Product Designer',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=120&auto=format&fit=crop&q=80',
+  },
+];
+
+export const MOCK_SPACES: Space[] = [
+  {
+    id: 'sp_1',
+    name: 'CSE 320 — Database Project',
+    description: 'Distributed database design and query optimizer capstone project for Fall semester.',
+    icon: '🎓',
+    category: 'university',
+    ownerId: 'usr_2', // Nadia created and invited
+    memberIds: ['usr_1', 'usr_2', 'usr_3', 'usr_4'],
+    inviteCode: 'CSE320',
+    dueDate: '2026-09-10',
+    createdAt: '2026-08-01T09:00:00Z',
+  },
+  {
+    id: 'sp_2',
+    name: 'Final Year Project',
+    description: 'Autonomous drone pathfinding using lightweight reinforcement learning and edge compute.',
+    icon: '🔬',
+    category: 'research',
+    ownerId: 'usr_1',
+    memberIds: ['usr_1', 'usr_2', 'usr_5'],
+    inviteCode: 'FYP2026',
+    dueDate: '2026-10-15',
+    createdAt: '2026-07-15T10:00:00Z',
+  },
+  {
+    id: 'sp_3',
+    name: 'Company App',
+    description: 'Core product engineering for next-generation mobile commerce MVP.',
+    icon: '🏢',
+    category: 'company',
+    ownerId: 'usr_3',
+    memberIds: ['usr_1', 'usr_3', 'usr_6'],
+    inviteCode: 'TECHMVP',
+    dueDate: '2026-08-30',
+    createdAt: '2026-06-20T08:00:00Z',
+  },
+  {
+    id: 'sp_4',
+    name: 'Data Science Club',
+    description: 'Organizing the 2026 Annual Inter-University AI Hackathon & Workshop series.',
+    icon: '👥',
+    category: 'club',
+    ownerId: 'usr_4',
+    memberIds: ['usr_1', 'usr_2', 'usr_4'],
+    inviteCode: 'DSCLUB',
+    dueDate: '2026-09-25',
+    createdAt: '2026-08-05T14:00:00Z',
+  },
+  {
+    id: 'sp_personal',
+    name: 'My Space',
+    description: 'Personal study routines, portfolio tasks, and independent learning backlog.',
+    icon: '🏠',
+    category: 'personal',
+    isPersonal: true,
+    ownerId: 'usr_1',
+    memberIds: ['usr_1'],
+    inviteCode: 'PERSONAL',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+];
+
+export const MOCK_SPACE_MEMBERS: SpaceMember[] = [
+  // CSE 320
+  { id: 'sm_1', spaceId: 'sp_1', userId: 'usr_2', role: 'owner', joinedAt: '2026-08-01T09:00:00Z' },
+  { id: 'sm_2', spaceId: 'sp_1', userId: 'usr_1', role: 'member', joinedAt: '2026-08-01T09:30:00Z' },
+  { id: 'sm_3', spaceId: 'sp_1', userId: 'usr_3', role: 'member', joinedAt: '2026-08-02T11:00:00Z' },
+  { id: 'sm_4', spaceId: 'sp_1', userId: 'usr_4', role: 'member', joinedAt: '2026-08-03T16:20:00Z' },
+
+  // Final Year Project
+  { id: 'sm_5', spaceId: 'sp_2', userId: 'usr_1', role: 'owner', joinedAt: '2026-07-15T10:00:00Z' },
+  { id: 'sm_6', spaceId: 'sp_2', userId: 'usr_2', role: 'member', joinedAt: '2026-07-16T14:00:00Z' },
+  { id: 'sm_7', spaceId: 'sp_2', userId: 'usr_5', role: 'member', joinedAt: '2026-07-17T09:15:00Z' },
+
+  // Company
+  { id: 'sm_8', spaceId: 'sp_3', userId: 'usr_3', role: 'owner', joinedAt: '2026-06-20T08:00:00Z' },
+  { id: 'sm_9', spaceId: 'sp_3', userId: 'usr_1', role: 'member', joinedAt: '2026-06-22T10:00:00Z' },
+  { id: 'sm_10', spaceId: 'sp_3', userId: 'usr_6', role: 'member', joinedAt: '2026-06-25T11:30:00Z' },
+
+  // Club
+  { id: 'sm_11', spaceId: 'sp_4', userId: 'usr_4', role: 'owner', joinedAt: '2026-08-05T14:00:00Z' },
+  { id: 'sm_12', spaceId: 'sp_4', userId: 'usr_1', role: 'member', joinedAt: '2026-08-06T15:00:00Z' },
+  { id: 'sm_13', spaceId: 'sp_4', userId: 'usr_2', role: 'member', joinedAt: '2026-08-07T12:00:00Z' },
+
+  // Personal
+  { id: 'sm_14', spaceId: 'sp_personal', userId: 'usr_1', role: 'owner', joinedAt: '2026-01-01T00:00:00Z' },
+];
+
+export const MOCK_TASKS: Task[] = [
+  // --- CSE 320 Tasks ---
+  {
+    id: 'tsk_1',
+    spaceId: 'sp_1',
+    title: 'Complete ER Diagram',
+    description: 'Map out the entity-relationship schema for the distributed relational store, including normalization up to 3NF.',
+    status: 'in_progress',
+    priority: 'high',
+    assigneeId: 'usr_1', // Arman
+    reporterId: 'usr_2', // Nadia
+    dueDate: '2026-08-20',
+    checklist: [
+      { id: 'chk_1', title: 'Identify all primary keys & foreign keys', completed: true },
+      { id: 'chk_2', title: 'Normalize customer & order tables', completed: true },
+      { id: 'chk_3', title: 'Export vector PDF for submission', completed: false },
+    ],
+    createdAt: '2026-08-10T10:00:00Z',
+    updatedAt: '2026-08-15T14:30:00Z',
+  },
+  {
+    id: 'tsk_2',
+    spaceId: 'sp_1',
+    title: 'Database Design & Schema Setup',
+    description: 'Write DDL migration scripts for PostgreSQL and establish indexing strategies for high-throughput queries.',
+    status: 'in_progress',
+    priority: 'medium',
+    assigneeId: 'usr_3', // Rahim
+    reporterId: 'usr_2',
+    dueDate: '2026-08-23',
+    checklist: [
+      { id: 'chk_4', title: 'Create base tables DDL', completed: true },
+      { id: 'chk_5', title: 'Configure B-Tree and GIN indexes', completed: false },
+    ],
+    createdAt: '2026-08-11T11:00:00Z',
+    updatedAt: '2026-08-14T09:00:00Z',
+  },
+  {
+    id: 'tsk_3',
+    spaceId: 'sp_1',
+    title: 'Research distributed consensus protocols',
+    description: 'Evaluate Raft vs Paxos for state machine replication in our course cluster.',
+    status: 'done',
+    priority: 'medium',
+    assigneeId: 'usr_2', // Nadia
+    reporterId: 'usr_1',
+    dueDate: '2026-08-12',
+    checklist: [
+      { id: 'chk_6', title: 'Summarize Raft leader election', completed: true },
+      { id: 'chk_7', title: 'Draft benchmark comparison note', completed: true },
+    ],
+    createdAt: '2026-08-05T09:00:00Z',
+    updatedAt: '2026-08-12T16:00:00Z',
+  },
+  {
+    id: 'tsk_4',
+    spaceId: 'sp_1',
+    title: 'Submit DBMS Final Report',
+    description: 'Synthesize performance benchmarks, query explain plans, and final project conclusions into the course template.',
+    status: 'todo',
+    priority: 'urgent',
+    assigneeId: 'usr_1', // Arman
+    reporterId: 'usr_2',
+    dueDate: '2026-09-02',
+    checklist: [
+      { id: 'chk_8', title: 'Compile latex document', completed: false },
+      { id: 'chk_9', title: 'Peer review with team', completed: false },
+    ],
+    createdAt: '2026-08-12T14:00:00Z',
+    updatedAt: '2026-08-12T14:00:00Z',
+  },
+  {
+    id: 'tsk_5',
+    spaceId: 'sp_1',
+    title: 'API Query Gateway Implementation',
+    description: 'FastAPI gateway exposing read/write endpoints with JWT authorization.',
+    status: 'todo',
+    priority: 'high',
+    assigneeId: 'usr_4', // Sakib
+    reporterId: 'usr_3',
+    dueDate: '2026-08-28',
+    checklist: [],
+    createdAt: '2026-08-13T10:00:00Z',
+    updatedAt: '2026-08-13T10:00:00Z',
+  },
+
+  // --- Final Year Project Tasks ---
+  {
+    id: 'tsk_6',
+    spaceId: 'sp_2',
+    title: 'Review Literature on RL Drone Control',
+    description: 'Read and annotate top 10 papers from ICRA and IROS on reinforcement learning for quadrotor obstacle avoidance.',
+    status: 'todo',
+    priority: 'high',
+    assigneeId: 'usr_1', // Arman
+    reporterId: 'usr_2', // Nadia
+    dueDate: '2026-08-25',
+    checklist: [
+      { id: 'chk_10', title: 'Summarize Hwangbo et al. paper', completed: true },
+      { id: 'chk_11', title: 'Evaluate simulation-to-real transfer methods', completed: false },
+    ],
+    createdAt: '2026-08-08T10:00:00Z',
+    updatedAt: '2026-08-15T11:00:00Z',
+  },
+  {
+    id: 'tsk_7',
+    spaceId: 'sp_2',
+    title: 'Complete Project Proposal & Scope',
+    description: 'Formalize milestone deliverables, flight testing safety boundaries, and hardware budget requirements.',
+    status: 'done',
+    priority: 'urgent',
+    assigneeId: 'usr_2',
+    reporterId: 'usr_5', // Dr. Sarah
+    dueDate: '2026-08-05',
+    checklist: [
+      { id: 'chk_12', title: 'Sign-off from advisor', completed: true },
+      { id: 'chk_13', title: 'Submit to department committee', completed: true },
+    ],
+    createdAt: '2026-07-20T09:00:00Z',
+    updatedAt: '2026-08-05T15:00:00Z',
+  },
+  {
+    id: 'tsk_8',
+    spaceId: 'sp_2',
+    title: 'Setup Gazebo Physics Simulation',
+    description: 'Configure realistic drone aerodynamic models and depth camera sensor plugins in ROS2.',
+    status: 'in_progress',
+    priority: 'high',
+    assigneeId: 'usr_1',
+    reporterId: 'usr_1',
+    dueDate: '2026-09-05',
+    checklist: [],
+    createdAt: '2026-08-10T12:00:00Z',
+    updatedAt: '2026-08-16T10:00:00Z',
+  },
+
+  // --- Company Tasks ---
+  {
+    id: 'tsk_9',
+    spaceId: 'sp_3',
+    title: 'Fix Authentication & Session Expiry Bug',
+    description: 'Resolve token refresh race condition causing occasional 401 logouts during checkout flow.',
+    status: 'in_progress',
+    priority: 'urgent',
+    assigneeId: 'usr_1', // Arman
+    reporterId: 'usr_3', // Rahim
+    dueDate: '2026-08-18',
+    checklist: [
+      { id: 'chk_14', title: 'Reproduce with slow network throttle', completed: true },
+      { id: 'chk_15', title: 'Implement mutex lock for token renewal', completed: false },
+      { id: 'chk_16', title: 'Add unit tests', completed: false },
+    ],
+    createdAt: '2026-08-14T09:00:00Z',
+    updatedAt: '2026-08-16T17:00:00Z',
+  },
+  {
+    id: 'tsk_10',
+    spaceId: 'sp_3',
+    title: 'Design Mobile Checkout Redesign',
+    description: 'Deliver high-fidelity Figma components with Apple Pay and one-tap checkout interactions.',
+    status: 'done',
+    priority: 'medium',
+    assigneeId: 'usr_6',
+    reporterId: 'usr_3',
+    dueDate: '2026-08-10',
+    checklist: [],
+    createdAt: '2026-08-01T10:00:00Z',
+    updatedAt: '2026-08-10T14:00:00Z',
+  },
+
+  // --- Club Tasks ---
+  {
+    id: 'tsk_11',
+    spaceId: 'sp_4',
+    title: 'Finalize Hackathon Sponsorship Deck',
+    description: 'Compile prospectus with participant demographics and tier packages for tech partners.',
+    status: 'todo',
+    priority: 'medium',
+    assigneeId: 'usr_4',
+    reporterId: 'usr_4',
+    dueDate: '2026-08-26',
+    checklist: [],
+    createdAt: '2026-08-12T11:00:00Z',
+    updatedAt: '2026-08-12T11:00:00Z',
+  },
+  {
+    id: 'tsk_12',
+    spaceId: 'sp_4',
+    title: 'Launch Event Registration Form',
+    description: 'Setup registration portal, verify captcha, and connect Google Sheets webhook.',
+    status: 'done',
+    priority: 'high',
+    assigneeId: 'usr_1',
+    reporterId: 'usr_4',
+    dueDate: '2026-08-15',
+    checklist: [],
+    createdAt: '2026-08-08T10:00:00Z',
+    updatedAt: '2026-08-15T18:00:00Z',
+  },
+
+  // --- Personal Space Tasks ---
+  {
+    id: 'tsk_13',
+    spaceId: 'sp_personal',
+    title: 'Study Statistics & Probability Distribution',
+    description: 'Chapter 4 on Markov Chains and Bayesian Inference for upcoming midterm.',
+    status: 'todo',
+    priority: 'high',
+    assigneeId: 'usr_1',
+    reporterId: 'usr_1',
+    dueDate: '2026-08-19',
+    checklist: [
+      { id: 'chk_17', title: 'Complete exercise set 4.1 - 4.5', completed: false },
+      { id: 'chk_18', title: 'Review lecture recordings', completed: false },
+    ],
+    createdAt: '2026-08-14T10:00:00Z',
+    updatedAt: '2026-08-14T10:00:00Z',
+  },
+  {
+    id: 'tsk_14',
+    spaceId: 'sp_personal',
+    title: 'Finish Portfolio Project Case Study',
+    description: 'Write up technical breakdown and interactive demo video for TrackFlow redesign.',
+    status: 'in_progress',
+    priority: 'medium',
+    assigneeId: 'usr_1',
+    reporterId: 'usr_1',
+    dueDate: '2026-08-24',
+    checklist: [],
+    createdAt: '2026-08-12T12:00:00Z',
+    updatedAt: '2026-08-16T14:00:00Z',
+  },
+  {
+    id: 'tsk_15',
+    spaceId: 'sp_personal',
+    title: 'Read Machine Learning Chapter 8',
+    description: 'Deep neural networks and backpropagation mechanics.',
+    status: 'done',
+    priority: 'low',
+    assigneeId: 'usr_1',
+    reporterId: 'usr_1',
+    dueDate: '2026-08-11',
+    checklist: [],
+    createdAt: '2026-08-09T08:00:00Z',
+    updatedAt: '2026-08-11T20:00:00Z',
+  },
+];
+
+export const MOCK_FILES: SpaceFile[] = [
+  {
+    id: 'fil_1',
+    spaceId: 'sp_1',
+    name: 'CSE320_Project_Proposal.pdf',
+    url: 'https://example.com/files/proposal.pdf',
+    type: 'pdf',
+    size: '2.4 MB',
+    uploadedById: 'usr_2',
+    uploadedAt: '2026-08-02T10:00:00Z',
+  },
+  {
+    id: 'fil_2',
+    spaceId: 'sp_1',
+    name: 'Database_Schema_v2.sql',
+    url: 'https://example.com/files/schema.sql',
+    type: 'code',
+    size: '48 KB',
+    uploadedById: 'usr_3',
+    uploadedAt: '2026-08-14T09:15:00Z',
+  },
+  {
+    id: 'fil_3',
+    spaceId: 'sp_1',
+    name: 'Figma System Architecture Diagram',
+    url: 'https://figma.com/@cse320-database',
+    type: 'link',
+    uploadedById: 'usr_1',
+    uploadedAt: '2026-08-15T11:00:00Z',
+  },
+  {
+    id: 'fil_4',
+    spaceId: 'sp_2',
+    name: 'Literature_Review_Draft.pdf',
+    url: 'https://example.com/files/lit_review.pdf',
+    type: 'pdf',
+    size: '4.1 MB',
+    uploadedById: 'usr_1',
+    uploadedAt: '2026-08-08T14:30:00Z',
+  },
+  {
+    id: 'fil_5',
+    spaceId: 'sp_4',
+    name: 'Hackathon_Event_Proposal.pdf',
+    url: 'https://example.com/files/event_proposal.pdf',
+    type: 'pdf',
+    size: '1.8 MB',
+    uploadedById: 'usr_4',
+    uploadedAt: '2026-08-12T16:00:00Z',
+  },
+];
+
+export const MOCK_COMMENTS: Comment[] = [
+  {
+    id: 'com_1',
+    taskId: 'tsk_1',
+    spaceId: 'sp_1',
+    authorId: 'usr_1', // Arman
+    content: 'Can you double-check the 3NF relationships for the order line items before I export?',
+    createdAt: '2026-08-15T10:20:00Z',
+  },
+  {
+    id: 'com_2',
+    taskId: 'tsk_1',
+    spaceId: 'sp_1',
+    authorId: 'usr_2', // Nadia
+    content: 'Yes! Looks clean. I’ll review the composite keys tonight so we are ready for Rahim’s DDL scripts.',
+    createdAt: '2026-08-15T11:05:00Z',
+  },
+  {
+    id: 'com_3',
+    taskId: 'tsk_9',
+    spaceId: 'sp_3',
+    authorId: 'usr_3', // Rahim
+    content: 'The token refresh failure happens only when multiple parallel GraphQL queries trigger simultaneously upon initial app launch.',
+    createdAt: '2026-08-16T15:30:00Z',
+  },
+  {
+    id: 'com_4',
+    taskId: 'tsk_9',
+    spaceId: 'sp_3',
+    authorId: 'usr_1', // Arman
+    content: 'Got it. I added a promise queue resolver to ensure single token exchange. Pushing fix soon.',
+    createdAt: '2026-08-16T16:45:00Z',
+  },
+];
+
+export const MOCK_ACTIVITIES: Activity[] = [
+  {
+    id: 'act_1',
+    spaceId: 'sp_1',
+    userId: 'usr_2',
+    action: 'completed_task',
+    entityTitle: 'Research distributed consensus protocols',
+    details: 'Marked task as Done',
+    timestamp: '10 minutes ago',
+    taskId: 'tsk_3',
+  },
+  {
+    id: 'act_2',
+    spaceId: 'sp_3',
+    userId: 'usr_3',
+    action: 'commented',
+    entityTitle: 'Fix Authentication & Session Expiry Bug',
+    details: 'Commented on authentication concurrency',
+    timestamp: '45 minutes ago',
+    taskId: 'tsk_9',
+  },
+  {
+    id: 'act_3',
+    spaceId: 'sp_2',
+    userId: 'usr_2',
+    action: 'assigned_task',
+    entityTitle: 'Review Literature on RL Drone Control',
+    details: 'Assigned task to Arman Khan',
+    timestamp: '2 hours ago',
+    taskId: 'tsk_6',
+  },
+  {
+    id: 'act_4',
+    spaceId: 'sp_4',
+    userId: 'usr_4',
+    action: 'uploaded_file',
+    entityTitle: 'Hackathon_Event_Proposal.pdf',
+    details: 'Uploaded document to Files',
+    timestamp: '5 hours ago',
+  },
+  {
+    id: 'act_5',
+    spaceId: 'sp_1',
+    userId: 'usr_1',
+    action: 'status_changed',
+    entityTitle: 'Complete ER Diagram',
+    details: 'Updated checklist progress to 66%',
+    timestamp: '1 day ago',
+    taskId: 'tsk_1',
+  },
+  {
+    id: 'act_6',
+    spaceId: 'sp_1',
+    userId: 'usr_3',
+    action: 'uploaded_file',
+    entityTitle: 'Database_Schema_v2.sql',
+    details: 'Uploaded migration schema',
+    timestamp: '2 days ago',
+  },
+];
+
+export const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'notif_1',
+    userId: 'usr_1',
+    spaceId: 'sp_2',
+    taskId: 'tsk_6',
+    title: 'Task Assigned',
+    message: 'Nadia assigned you "Review Literature on RL Drone Control"',
+    type: 'task_assigned',
+    read: false,
+    createdAt: '2026-08-17T09:30:00Z',
+  },
+  {
+    id: 'notif_2',
+    userId: 'usr_1',
+    spaceId: 'sp_3',
+    taskId: 'tsk_9',
+    title: 'New Comment',
+    message: 'Rahim commented on "Fix Authentication & Session Expiry Bug"',
+    type: 'comment',
+    read: false,
+    createdAt: '2026-08-16T15:30:00Z',
+  },
+  {
+    id: 'notif_3',
+    userId: 'usr_1',
+    spaceId: 'sp_1',
+    taskId: 'tsk_1',
+    title: 'Deadline Approaching',
+    message: '"Complete ER Diagram" is due in 3 days (Aug 20)',
+    type: 'deadline_approaching',
+    read: true,
+    createdAt: '2026-08-15T08:00:00Z',
+  },
+];
+
+export const MOCK_NOTES: Note[] = [
+  {
+    id: 'note_1',
+    spaceId: 'sp_1',
+    title: 'Database Architecture Key Decisions',
+    content: '1. Using PostgreSQL with B-tree and GiST indices for spatial query optimization.\n2. Query caching layer using Redis with LRU eviction.\n3. Replication factor of 3 for fault tolerance in final presentation.',
+    isPinned: true,
+    createdAt: '2026-08-10T10:00:00Z',
+    updatedAt: '2026-08-14T14:30:00Z',
+  },
+  {
+    id: 'note_2',
+    spaceId: 'sp_1',
+    title: 'Presentation & Demo Checklist',
+    content: '- Slides deck draft due Aug 24.\n- Live benchmark script to showcase 4x speedup with query optimizer.\n- Prepare backup video recording in case WiFi fails.',
+    isPinned: false,
+    createdAt: '2026-08-12T11:00:00Z',
+    updatedAt: '2026-08-15T09:15:00Z',
+  },
+  {
+    id: 'note_3',
+    spaceId: 'sp_2',
+    title: 'Advisor Meeting Notes — Aug 16',
+    content: 'Dr. Sarah recommended comparing our RL agent against standard A* and RRT algorithms on randomized 3D obstacle courses.',
+    isPinned: true,
+    createdAt: '2026-08-16T16:00:00Z',
+    updatedAt: '2026-08-16T16:45:00Z',
+  },
+];
+
+export const MOCK_MILESTONES: Milestone[] = [
+  {
+    id: 'ms_1',
+    spaceId: 'sp_1',
+    title: 'Phase 1: Relational Schema & ER Diagram',
+    description: 'Finalize normalized schema, constraints, and initial SQL migrations.',
+    dueDate: '2026-08-20',
+    status: 'in_progress',
+    targetDeliverable: 'ERD PDF and SQL schema script',
+  },
+  {
+    id: 'ms_2',
+    spaceId: 'sp_1',
+    title: 'Phase 2: Custom Cost-Based Optimizer Engine',
+    description: 'Implement algebraic tree rewrites and cost estimations.',
+    dueDate: '2026-08-28',
+    status: 'upcoming',
+    targetDeliverable: 'Engine core binary with test suite',
+  },
+  {
+    id: 'ms_3',
+    spaceId: 'sp_1',
+    title: 'Phase 3: Final Demo & Benchmark Report',
+    description: 'End-to-end presentation and submission to faculty.',
+    dueDate: '2026-09-10',
+    status: 'upcoming',
+    targetDeliverable: 'Comprehensive project report',
+  },
+  {
+    id: 'ms_4',
+    spaceId: 'sp_2',
+    title: 'Midterm Research Paper Submission',
+    description: 'Draft IEEE format paper with simulation data.',
+    dueDate: '2026-08-25',
+    status: 'in_progress',
+    targetDeliverable: 'PDF draft to supervisor',
+  },
+];
