@@ -1,12 +1,14 @@
 import pg from 'pg';
 const { Pool } = pg;
 
+const connectionString = process.env.DATABASE_URL;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 15000,
 });
 
 pool.on('error', (err) => {
@@ -33,9 +35,12 @@ export async function initializeDatabase() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      password_hash TEXT,
       avatar TEXT,
-      title TEXT
+      title TEXT,
+      profile_completed BOOLEAN DEFAULT FALSE,
+      use_case TEXT,
+      created_at TEXT NOT NULL DEFAULT NOW(),
+      updated_at TEXT NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS spaces (
@@ -152,6 +157,9 @@ export async function initializeDatabase() {
       PRIMARY KEY (space_id, setting_key)
     );
   `);
+
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_completed BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS use_case TEXT`);
 }
 
 export { pool };

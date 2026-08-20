@@ -6,6 +6,8 @@ export interface User {
   email: string;
   avatar?: string;
   title?: string;
+  profileCompleted?: boolean;
+  useCase?: 'personal' | 'education' | 'work' | 'other';
 }
 
 export type SpaceCategory = 'university' | 'research' | 'company' | 'club' | 'personal' | 'freelance' | 'other';

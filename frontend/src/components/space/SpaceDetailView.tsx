@@ -620,16 +620,26 @@ export const SpaceDetailView: React.FC = () => {
                       className="group flex items-center justify-between p-3.5 rounded-lg bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-indigo-800 hover:shadow-2xs transition-all"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <button
-                          onClick={() => toggleTaskCompleted(task.id)}
-                          className="text-zinc-300 dark:text-zinc-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-                        >
-                          {isDone ? (
-                            <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                          ) : (
-                            <Circle className="w-4 h-4" />
-                          )}
-                        </button>
+                        {(isManager || task.assigneeId === currentUser.id) ? (
+                          <button
+                            onClick={() => toggleTaskCompleted(task.id)}
+                            className="text-zinc-300 dark:text-zinc-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                          >
+                            {isDone ? (
+                              <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            ) : (
+                              <Circle className="w-4 h-4" />
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-zinc-300 dark:text-zinc-700">
+                            {isDone ? (
+                              <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            ) : (
+                              <Circle className="w-4 h-4" />
+                            )}
+                          </span>
+                        )}
 
                         <div
                           className="min-w-0 cursor-pointer"
@@ -677,15 +687,28 @@ export const SpaceDetailView: React.FC = () => {
                           />
                         )}
                         {getPriorityBadge(task.priority)}
-                        <select
-                          value={task.status}
-                          onChange={e => moveTaskStatus(task.id, e.target.value as TaskStatus)}
-                          className="text-[11px] bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-zinc-800 dark:text-zinc-200 font-medium focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        {(isManager || task.assigneeId === currentUser.id) ? (
+                          <select
+                            value={task.status}
+                            onChange={e => moveTaskStatus(task.id, e.target.value as TaskStatus)}
+                            className="text-[11px] bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 text-zinc-800 dark:text-zinc-200 font-medium focus:outline-none focus:border-indigo-500 cursor-pointer"
+                          >
+                            <option value="todo">To Do</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="done">Done</option>
+                          </select>
+                        ) : (
+                          <span className="text-[11px] px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-medium">
+                            {task.status === 'todo' ? 'To Do' : task.status === 'in_progress' ? 'In Progress' : 'Done'}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setSelectedTaskId(task.id)}
+                          className="p-1.5 rounded text-zinc-400 dark:text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                          title="Edit task"
                         >
-                          <option value="todo">To Do</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="done">Done</option>
-                        </select>
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -851,13 +874,22 @@ export const SpaceDetailView: React.FC = () => {
                       )}
                       <div className="flex items-center justify-between pt-1">
                         {getPriorityBadge(task.priority)}
-                        {assignee && (
-                          <img
-                            src={assignee.avatar}
-                            alt={assignee.name}
-                            className="w-5 h-5 rounded-full object-cover"
-                          />
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedTaskId(task.id); }}
+                            className="p-1 rounded text-zinc-400 dark:text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                            title="Edit task"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          {assignee && (
+                            <img
+                              src={assignee.avatar}
+                              alt={assignee.name}
+                              className="w-5 h-5 rounded-full object-cover"
+                            />
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

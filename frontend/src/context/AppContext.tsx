@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../api';
+import { supabase } from '../config/supabase';
 import {
   User,
   Space,
@@ -40,6 +41,8 @@ interface AppContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  googleSignIn: (data: { id: string; name: string; email: string; avatar?: string }) => Promise<void>;
+  completeProfile: (data: { name?: string; avatar?: string; useCase?: string }) => Promise<void>;
   logout: () => void;
 
   // Current user
@@ -173,7 +176,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_PREFIX = 'trackflow_spaces_v3_';
+const STORAGE_PREFIX = 'taskflow_v1_';
 
 let idCounter = 0;
 export const generateUniqueId = (prefix: string): string => {
@@ -222,31 +225,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ── Auth state ──
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-  const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('trackflow_token'));
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
     return localStorage.getItem(`${STORAGE_PREFIX}current_user`) || '';
   });
 
-  // ── Check auth on mount ──
+  // ── Check auth on mount + listen for changes ──
   useEffect(() => {
-    const token = localStorage.getItem('trackflow_token');
-    if (token) {
-      setAuthToken(token);
-      api.getMe()
-        .then((user) => {
-          setCurrentUserId(user.id);
-          setIsAuthenticated(true);
-          localStorage.setItem(`${STORAGE_PREFIX}current_user`, user.id);
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+        setIsAuthenticated(true);
+        localStorage.setItem(`${STORAGE_PREFIX}current_user`, session.user.id);
+        if (window.location.pathname !== '/') {
+          window.history.replaceState({}, '', '/');
+        }
+        api.syncUser().then(() => {
           api.ensurePersonalSpace().catch(() => {});
-        })
-        .catch(() => {
-          localStorage.removeItem('trackflow_token');
-          setIsAuthenticated(false);
-        })
-        .finally(() => setAuthLoading(false));
-    } else {
+        }).catch(() => {});
+      }
       setAuthLoading(false);
-    }
+    }).catch(() => {
+      if (mounted) setAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setCurrentUserId(session.user.id);
+        setIsAuthenticated(true);
+        setAuthLoading(false);
+        localStorage.setItem(`${STORAGE_PREFIX}current_user`, session.user.id);
+        if (window.location.pathname !== '/') {
+          window.history.replaceState({}, '', '/');
+        }
+        api.syncUser().then(() => {
+          api.ensurePersonalSpace().catch(() => {});
+        }).catch(() => {});
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUserId('');
+        setIsAuthenticated(false);
+        setAuthLoading(false);
+        localStorage.removeItem(`${STORAGE_PREFIX}current_user`);
+        queryClient.clear();
+      } else if (event === 'INITIAL_SESSION') {
+        if (session?.user) {
+          setCurrentUserId(session.user.id);
+          setIsAuthenticated(true);
+          localStorage.setItem(`${STORAGE_PREFIX}current_user`, session.user.id);
+          if (window.location.pathname !== '/') {
+            window.history.replaceState({}, '', '/');
+          }
+          api.syncUser().then(() => {
+            api.ensurePersonalSpace().catch(() => {});
+          }).catch(() => {});
+        }
+        setAuthLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // ── Handle ?join=CODE from URL ──
@@ -260,29 +302,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isAuthenticated, authLoading]);
 
-  // ── Auth actions ──
-  const loginFn = async (email: string, password: string) => {
-    const result = await api.login({ email, password });
-    localStorage.setItem('trackflow_token', result.token);
-    setAuthToken(result.token);
-    setCurrentUserId(result.user.id);
-    localStorage.setItem(`${STORAGE_PREFIX}current_user`, result.user.id);
-    setIsAuthenticated(true);
+  // ── Auth actions (Supabase handles actual auth) ──
+  const loginFn = async (_email: string, _password: string) => {
+    // AuthPage handles this directly via supabase.auth.signInWithPassword
+    // This is kept for interface compatibility
   };
 
-  const registerFn = async (name: string, email: string, password: string) => {
-    const result = await api.register({ name, email, password });
-    localStorage.setItem('trackflow_token', result.token);
-    setAuthToken(result.token);
-    setCurrentUserId(result.user.id);
-    localStorage.setItem(`${STORAGE_PREFIX}current_user`, result.user.id);
-    setIsAuthenticated(true);
+  const registerFn = async (_name: string, _email: string, _password: string) => {
+    // AuthPage handles this directly via supabase.auth.signUp
+    // This is kept for interface compatibility
   };
 
-  const logout = () => {
-    localStorage.removeItem('trackflow_token');
+  const googleSignInFn = async (_data: { id: string; name: string; email: string; avatar?: string }) => {
+    // AuthPage handles this directly via supabase.auth.signInWithOAuth
+    // This is kept for interface compatibility
+  };
+
+  const completeProfileFn = async (data: { name?: string; avatar?: string; useCase?: string }) => {
+    const result = await api.completeProfile(data);
+    if (result.user) {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    }
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem(`${STORAGE_PREFIX}current_user`);
-    setAuthToken(null);
     setCurrentUserId('');
     setIsAuthenticated(false);
     queryClient.clear();
@@ -491,7 +536,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userId,
         role: (userId === space.ownerId ? 'owner' : 'member') as SpaceRole,
         joinedAt: space.createdAt,
-        user: user || { id: userId, name: 'Team Member', email: 'member@trackflow.app' },
+        user: user || { id: userId, name: 'Team Member', email: 'member@taskflow.app' },
       };
     });
   };
@@ -694,16 +739,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateMemberRoleMutation = useMutation({
     mutationFn: ({ spaceId, userId, role }: { spaceId: string; userId: string; role: string }) =>
       api.updateMemberRole(spaceId, userId, role, currentUserId),
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['spaceDetail', variables.spaceId] });
+      const previous = queryClient.getQueryData<any>(['spaceDetail', variables.spaceId]);
+      queryClient.setQueryData<any>(['spaceDetail', variables.spaceId], (old: any) => {
+        if (!old?.members) return old;
+        return {
+          ...old,
+          members: old.members.map((m: any) =>
+            m.userId === variables.userId ? { ...m, role: variables.role } : m
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['spaceDetail', vars.spaceId], context.previous);
+      }
+    },
     onSettled: (_data, _err, vars) => {
       queryClient.invalidateQueries({ queryKey: ['spaces', currentUserId] });
+      if (vars) {
+        queryClient.invalidateQueries({ queryKey: ['spaceDetail', vars.spaceId] });
+      }
     },
   });
 
   const updateSpaceSettingsMutation = useMutation({
     mutationFn: ({ spaceId, settings }: { spaceId: string; settings: Record<string, any> }) =>
       api.updateSpaceSettings(spaceId, settings, currentUserId),
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['spaceDetail', variables.spaceId] });
+      const previous = queryClient.getQueryData<any>(['spaceDetail', variables.spaceId]);
+      queryClient.setQueryData<any>(['spaceDetail', variables.spaceId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          settings: { ...old.settings, ...variables.settings },
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['spaceDetail', vars.spaceId], context.previous);
+      }
+    },
     onSettled: (_data, _err, vars) => {
       queryClient.invalidateQueries({ queryKey: ['spaces', currentUserId] });
+      if (vars) {
+        queryClient.invalidateQueries({ queryKey: ['spaceDetail', vars.spaceId] });
+      }
     },
   });
 
@@ -754,7 +841,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Task> }) => api.updateTask(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<Task> }) => api.updateTask(id, { ...data, _userId: currentUserId }),
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: ['tasks'] });
       const previous = queryClient.getQueryData<Task[]>(['tasks']);
@@ -776,7 +863,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const deleteTaskMutation = useMutation({
-    mutationFn: (id: string) => api.deleteTask(id),
+    mutationFn: (id: string) => api.deleteTask(id, currentUserId),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['tasks'] });
       const previous = queryClient.getQueryData<Task[]>(['tasks']);
@@ -1290,7 +1377,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const owner = getUserById(localSpace.ownerId) || {
         id: localSpace.ownerId,
         name: 'Project Lead',
-        email: 'lead@trackflow.app',
+        email: 'lead@taskflow.app',
       };
       setActiveInvitePreview({
         space: localSpace,
@@ -1531,6 +1618,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isLoading: authLoading,
         login: loginFn,
         register: registerFn,
+        googleSignIn: googleSignInFn,
+        completeProfile: completeProfileFn,
         logout,
         currentUser,
         users,

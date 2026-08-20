@@ -1,3 +1,5 @@
+import { getAccessToken } from '../lib/auth-client';
+
 const API_BASE = '/api';
 
 class ApiError extends Error {
@@ -7,12 +9,8 @@ class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
-  return localStorage.getItem('trackflow_token');
-}
-
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
+  const token = await getAccessToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options?.headers as Record<string, string> || {}),

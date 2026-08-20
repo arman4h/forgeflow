@@ -23,7 +23,7 @@ export const JoinSpaceModal: React.FC = () => {
     setError('');
     setLoading(true);
 
-    // Extract code from potential URL like trackflow.app/join/ABC123
+    // Extract code from potential URL like taskflow.app/join/ABC123
     let cleanCode = codeOrUrl.trim();
     if (cleanCode.includes('/join/')) {
       cleanCode = cleanCode.split('/join/')[1].split('/')[0];
@@ -61,8 +61,7 @@ export const JoinSpaceModal: React.FC = () => {
       <form onSubmit={handleJoin} className="space-y-4">
         <div>
           <Input
-            label="Invite Code or Link"
-            placeholder="e.g. CSE320 or ?join=FYP2026"
+            placeholder="Invite Code or Link"
             value={codeOrUrl}
             onChange={e => {
               setCodeOrUrl(e.target.value);

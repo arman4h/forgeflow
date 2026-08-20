@@ -98,7 +98,7 @@ export const MySpaceView: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Your permanent home in TrackFlow. Unified cross-space work and private tasks.
+            Your permanent home in TaskFlow. Unified cross-space work and private tasks.
           </p>
         </div>
 

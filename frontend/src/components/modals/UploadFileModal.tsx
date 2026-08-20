@@ -64,8 +64,7 @@ export const UploadFileModal: React.FC = () => {
         </div>
 
         <Input
-          label="Resource Name *"
-          placeholder="e.g. Project Proposal.pdf or Figma Prototype"
+          placeholder="Resource Name *"
           value={name}
           onChange={e => setName(e.target.value)}
           required
@@ -73,8 +72,7 @@ export const UploadFileModal: React.FC = () => {
         />
 
         <Input
-          label="URL / Link"
-          placeholder="https://..."
+          placeholder="URL / Link"
           value={url}
           onChange={e => setUrl(e.target.value)}
         />

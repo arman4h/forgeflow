@@ -1,118 +1,64 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
-import bcrypt from 'bcrypt';
 import { query, queryOne } from '../db/connection.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { supabaseAdmin } from '../config/supabase.js';
+import { AuthRequest } from '../middleware/authMiddleware.js';
 
 export const authRoutes = Router();
 
-function generateToken(userId: string): string {
-  const payload = `${userId}:${Date.now()}`;
-  return Buffer.from(payload).toString('base64url');
+const USER_FIELDS = 'id, name, email, avatar, title, profile_completed, use_case';
+
+function mapUser(row: any) {
+  if (!row) return null;
+  return {
+    ...row,
+    profileCompleted: row.profile_completed === true,
+    useCase: row.use_case,
+  };
 }
 
-authRoutes.post('/register', asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+async function ensurePersonalSpace(userId: string): Promise<string> {
+  const personalSpaceId = `sp_personal_${userId}`;
+  const existing = await queryOne('SELECT id FROM spaces WHERE id = $1', [personalSpaceId]);
+  if (existing) return personalSpaceId;
 
-  if (!name || !email || !password) {
-    res.status(400).json({ error: 'Name, email, and password are required' });
-    return;
-  }
+  // Check if user already owns a personal space (from a different ID)
+  const existingPersonal = await queryOne(
+    'SELECT space_id FROM space_members WHERE user_id = $1 AND role = $2',
+    [userId, 'owner']
+  );
+  if (existingPersonal) return existingPersonal.space_id;
 
-  const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email]);
-  if (existing) {
-    res.status(409).json({ error: 'Email already registered' });
-    return;
-  }
-
-  const id = `usr_${nanoid()}`;
-  const passwordHash = await bcrypt.hash(password, 10);
   const now = new Date().toISOString();
+  let inviteCode = `PF_${nanoid(10).toUpperCase()}`;
 
-  await query(
-    'INSERT INTO users (id, name, email, password_hash, avatar, title) VALUES ($1, $2, $3, $4, $5, $6)',
-    [id, name, email, passwordHash, null, null]
-  );
+  // Retry with fresh nanoid if invite code somehow collides
+  for (let i = 0; i < 3; i++) {
+    try {
+      await query(
+        'INSERT INTO spaces (id, name, description, icon, category, is_personal, owner_id, invite_code, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9)',
+        [personalSpaceId, 'My Space', 'Personal tasks and private notes.', '🏠', 'personal', userId, inviteCode, now, now]
+      );
+      break;
+    } catch (err: any) {
+      if (err.code === '23505') {
+        inviteCode = `PF_${nanoid(10).toUpperCase()}`;
+        continue;
+      }
+      throw err;
+    }
+  }
 
-  const personalSpaceId = `sp_personal_${id}`;
-  const personalInviteCode = `PERSONAL_${id.slice(-6).toUpperCase()}`;
-  await query(
-    'INSERT INTO spaces (id, name, description, icon, category, is_personal, owner_id, invite_code, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING',
-    [personalSpaceId, 'My Space', 'Personal tasks and private notes.', '🏠', 'personal', id, personalInviteCode, now, now]
-  );
   await query(
     'INSERT INTO space_members (id, space_id, user_id, role, joined_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (space_id, user_id) DO NOTHING',
-    [`sm_personal_${id}`, personalSpaceId, id, 'owner', now]
+    [`sm_personal_${userId}`, personalSpaceId, userId, 'owner', now]
   );
+  return personalSpaceId;
+}
 
-  const user = await queryOne('SELECT id, name, email, avatar, title FROM users WHERE id = $1', [id]);
-  const token = generateToken(id);
-
-  res.status(201).json({ user, token });
-}));
-
-authRoutes.post('/login', asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    res.status(400).json({ error: 'Email and password are required' });
-    return;
-  }
-
-  const user = await queryOne('SELECT * FROM users WHERE email = $1', [email]);
-  if (!user) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
-  }
-
-  if (!user.password_hash) {
-    res.status(401).json({ error: 'Account has no password set' });
-    return;
-  }
-
-  const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
-  }
-
-  const token = generateToken(user.id);
-  const { password_hash, ...safeUser } = user;
-
-  res.json({ user: safeUser, token });
-}));
-
-authRoutes.get('/me', asyncHandler(async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'No token provided' });
-    return;
-  }
-
-  const token = authHeader.slice(7);
-  let userId: string;
-  try {
-    const decoded = Buffer.from(token, 'base64url').toString();
-    userId = decoded.split(':')[0];
-  } catch {
-    res.status(401).json({ error: 'Invalid token' });
-    return;
-  }
-
-  const user = await queryOne('SELECT id, name, email, avatar, title FROM users WHERE id = $1', [userId]);
-  if (!user) {
-    res.status(401).json({ error: 'User not found' });
-    return;
-  }
-
-  res.json({ user });
-}));
-
-authRoutes.post('/logout', asyncHandler(async (_req, res) => {
-  res.json({ message: 'Logged out' });
-}));
-
-authRoutes.post('/ensure-personal-space', asyncHandler(async (req, res) => {
+// Sync Supabase auth user to our users table
+authRoutes.post('/sync', asyncHandler(async (req: AuthRequest, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Authentication required' });
@@ -120,32 +66,95 @@ authRoutes.post('/ensure-personal-space', asyncHandler(async (req, res) => {
   }
 
   const token = authHeader.slice(7);
-  let userId: string;
-  try {
-    const decoded = Buffer.from(token, 'base64url').toString();
-    userId = decoded.split(':')[0];
-  } catch {
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !data.user) {
     res.status(401).json({ error: 'Invalid token' });
     return;
   }
 
-  const personalSpaceId = `sp_personal_${userId}`;
-  const existing = await queryOne('SELECT id FROM spaces WHERE id = $1', [personalSpaceId]);
-  if (existing) {
-    res.json({ spaceId: personalSpaceId });
+  const supaUser = data.user;
+  const userId = supaUser.id;
+  const email = supaUser.email || '';
+  const name = supaUser.user_metadata?.name
+    || supaUser.user_metadata?.full_name
+    || email.split('@')[0];
+  const avatar = supaUser.user_metadata?.avatar_url
+    || supaUser.user_metadata?.picture
+    || null;
+
+  const now = new Date().toISOString();
+
+  const existing = await queryOne(`SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]);
+  if (!existing) {
+    await query(
+      'INSERT INTO users (id, name, email, avatar, profile_completed, created_at, updated_at) VALUES ($1, $2, $3, $4, false, $5, $6) ON CONFLICT (id) DO NOTHING',
+      [userId, name, email, avatar, now, now]
+    );
+  } else if (avatar && !existing.avatar) {
+    await query('UPDATE users SET avatar = $1 WHERE id = $2', [avatar, userId]);
+  }
+
+  await ensurePersonalSpace(userId);
+
+  const user = await queryOne(`SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]);
+  res.json({ user: mapUser(user) });
+}));
+
+// Update profile (name, avatar, useCase)
+authRoutes.put('/complete-profile', asyncHandler(async (req: AuthRequest, res) => {
+  const userId = req.userId;
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
-  const now = new Date().toISOString();
-  const personalInviteCode = `PERSONAL_${userId.slice(-6).toUpperCase()}`;
+  const existing = await queryOne(`SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]);
+  if (!existing) {
+    res.status(404).json({ error: 'User not found. Please sync your account first.' });
+    return;
+  }
+
+  const { name, avatar, useCase } = req.body;
+
   await query(
-    'INSERT INTO spaces (id, name, description, icon, category, is_personal, owner_id, invite_code, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING',
-    [personalSpaceId, 'My Space', 'Personal tasks and private notes.', '🏠', 'personal', userId, personalInviteCode, now, now]
-  );
-  await query(
-    'INSERT INTO space_members (id, space_id, user_id, role, joined_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (space_id, user_id) DO NOTHING',
-    [`sm_personal_${userId}`, personalSpaceId, userId, 'owner', now]
+    'UPDATE users SET name = $1, avatar = $2, use_case = $3, profile_completed = true, updated_at = $4 WHERE id = $5',
+    [name ?? existing.name, avatar ?? existing.avatar, useCase ?? existing.use_case, new Date().toISOString(), userId]
   );
 
-  res.json({ spaceId: personalSpaceId });
+  const updated = await queryOne(`SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]);
+  res.json({ user: mapUser(updated) });
+}));
+
+// Get current user
+authRoutes.get('/me', asyncHandler(async (req: AuthRequest, res) => {
+  const userId = req.userId;
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  const user = await queryOne(`SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]);
+  if (!user) {
+    res.status(404).json({ error: 'User not found. Please sync your account first.' });
+    return;
+  }
+
+  res.json({ user: mapUser(user) });
+}));
+
+// Ensure personal space
+authRoutes.post('/ensure-personal-space', asyncHandler(async (req: AuthRequest, res) => {
+  const userId = req.userId;
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  const spaceId = await ensurePersonalSpace(userId);
+  res.json({ spaceId });
+}));
+
+// No-op logout (Supabase handles session on client side)
+authRoutes.post('/logout', asyncHandler(async (_req, res) => {
+  res.json({ message: 'Logged out' });
 }));

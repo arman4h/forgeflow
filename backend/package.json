@@ -1,5 +1,5 @@
 {
-  "name": "trackflow-backend",
+  "name": "taskflow-backend",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -10,10 +10,15 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "@supabase/supabase-js": "^2.112.3",
+    "@types/multer": "^2.2.0",
     "bcrypt": "^6.0.0",
+    "better-auth": "^1.7.1",
+    "cloudinary": "^2.10.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "multer": "^2.2.0",
     "nanoid": "^5.1.5",
     "pg": "^8.23.0",
     "ws": "^8.18.0",

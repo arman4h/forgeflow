@@ -1,5 +1,5 @@
 {
-  "name": "ForgeFlow",
+  "name": "TaskFlow",
   "description": "Simple spaces for getting work done together. Join a project, see what matters, and start working without complexity.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

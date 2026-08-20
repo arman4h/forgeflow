@@ -13,6 +13,8 @@ import {
   Send,
   CheckSquare,
   Share2,
+  Lock,
+  Pencil,
 } from 'lucide-react';
 import { Priority, TaskStatus } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -40,6 +42,8 @@ export const TaskDetailModal: React.FC = () => {
     getUserById,
     currentUser,
     getSpaceMembers,
+    getSpaceRole,
+    getSpaceSettings,
     personalSpace,
   } = useApp();
 
@@ -59,6 +63,14 @@ export const TaskDetailModal: React.FC = () => {
     task.spaceId === personalSpace.id || task.spaceId.startsWith('sp_personal');
   const spaceMembers = isPersonal ? [] : getSpaceMembers(task.spaceId);
   const isDone = task.status === 'done';
+
+  const myRole = isPersonal ? 'owner' : getSpaceRole(task.spaceId);
+  const isOwner = myRole === 'owner';
+  const isManager = myRole === 'manager' || isOwner;
+  const isAssigned = task.assigneeId === currentUser.id;
+  const settings = isPersonal ? null : getSpaceSettings(task.spaceId);
+  const canEditAll = isManager || (isAssigned && settings?.who_can_edit_task_details === 'assignee_and_managers');
+  const canChangeStatus = isManager || isAssigned;
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +96,12 @@ export const TaskDetailModal: React.FC = () => {
           <span className="text-zinc-900 dark:text-zinc-100 font-semibold">
             {space?.name || 'My Space'}
           </span>
+          {!canChangeStatus && (
+            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+              <Lock className="w-2.5 h-2.5" />
+              Read only
+            </span>
+          )}
         </div>
       }
       className="max-w-2xl"
@@ -91,25 +109,45 @@ export const TaskDetailModal: React.FC = () => {
       <div className="space-y-6">
         {/* Task Title & Complete Button */}
         <div className="flex items-start gap-3">
-          <button
-            onClick={() => toggleTaskCompleted(task.id)}
-            className="mt-1 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex-shrink-0 cursor-pointer"
-          >
-            {isDone ? (
-              <CheckCircle2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            ) : (
-              <Circle className="w-5 h-5 text-zinc-300 dark:text-zinc-600 hover:text-indigo-600 dark:hover:text-indigo-400" />
-            )}
-          </button>
+          {canChangeStatus ? (
+            <button
+              onClick={() => toggleTaskCompleted(task.id)}
+              className="mt-1 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex-shrink-0 cursor-pointer"
+            >
+              {isDone ? (
+                <CheckCircle2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              ) : (
+                <Circle className="w-5 h-5 text-zinc-300 dark:text-zinc-600 hover:text-indigo-600 dark:hover:text-indigo-400" />
+              )}
+            </button>
+          ) : (
+            <span className="mt-1 flex-shrink-0">
+              {isDone ? (
+                <CheckCircle2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              ) : (
+                <Circle className="w-5 h-5 text-zinc-300 dark:text-zinc-600" />
+              )}
+            </span>
+          )}
           <div className="flex-1">
-            <input
-              type="text"
-              value={task.title}
-              onChange={e => updateTask(task.id, { title: e.target.value })}
-              className={`w-full text-base md:text-lg font-bold text-zinc-950 dark:text-zinc-50 bg-transparent focus:outline-none border-b border-transparent focus:border-indigo-500 pb-0.5 ${
-                isDone ? 'line-through text-zinc-400 dark:text-zinc-500' : ''
-              }`}
-            />
+            {canEditAll ? (
+              <input
+                type="text"
+                value={task.title}
+                onChange={e => updateTask(task.id, { title: e.target.value })}
+                className={`w-full text-base md:text-lg font-bold text-zinc-950 dark:text-zinc-50 bg-transparent focus:outline-none border-b border-transparent focus:border-indigo-500 pb-0.5 ${
+                  isDone ? 'line-through text-zinc-400 dark:text-zinc-500' : ''
+                }`}
+              />
+            ) : (
+              <div
+                className={`w-full text-base md:text-lg font-bold pb-0.5 ${
+                  isDone ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-950 dark:text-zinc-50'
+                }`}
+              >
+                {task.title}
+              </div>
+            )}
           </div>
         </div>
 
@@ -120,15 +158,21 @@ export const TaskDetailModal: React.FC = () => {
             <span className="text-[10px] font-semibold uppercase text-zinc-500 dark:text-zinc-400 block mb-1">
               Status
             </span>
-            <select
-              value={task.status}
-              onChange={e => updateTask(task.id, { status: e.target.value as TaskStatus })}
-              className="flex h-8 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
-            >
-              <option value="todo">Todo</option>
-              <option value="in_progress">In Progress</option>
-              <option value="done">Done</option>
-            </select>
+            {canChangeStatus ? (
+              <select
+                value={task.status}
+                onChange={e => updateTask(task.id, { status: e.target.value as TaskStatus })}
+                className="flex h-8 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="todo">Todo</option>
+                <option value="in_progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
+            ) : (
+              <div className="h-8 flex items-center px-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 text-xs">
+                {task.status === 'todo' ? 'Todo' : task.status === 'in_progress' ? 'In Progress' : 'Done'}
+              </div>
+            )}
           </div>
 
           {/* Priority */}
@@ -136,16 +180,22 @@ export const TaskDetailModal: React.FC = () => {
             <span className="text-[10px] font-semibold uppercase text-zinc-500 dark:text-zinc-400 block mb-1">
               Priority
             </span>
-            <select
-              value={task.priority}
-              onChange={e => updateTask(task.id, { priority: e.target.value as Priority })}
-              className="flex h-8 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
+            {canEditAll ? (
+              <select
+                value={task.priority}
+                onChange={e => updateTask(task.id, { priority: e.target.value as Priority })}
+                className="flex h-8 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            ) : (
+              <div className="h-8 flex items-center px-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 text-xs capitalize">
+                {task.priority}
+              </div>
+            )}
           </div>
 
           {/* Assignee */}
@@ -157,7 +207,7 @@ export const TaskDetailModal: React.FC = () => {
               <div className="h-8 flex items-center px-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 text-xs">
                 {currentUser.name.split(' ')[0]} (You)
               </div>
-            ) : (
+            ) : canEditAll ? (
               <select
                 value={task.assigneeId || ''}
                 onChange={e => updateTask(task.id, { assigneeId: e.target.value || undefined })}
@@ -170,6 +220,10 @@ export const TaskDetailModal: React.FC = () => {
                   </option>
                 ))}
               </select>
+            ) : (
+              <div className="h-8 flex items-center px-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 text-xs">
+                {assignee ? assignee.name.split(' ')[0] : 'Unassigned'}
+              </div>
             )}
           </div>
 
@@ -178,23 +232,46 @@ export const TaskDetailModal: React.FC = () => {
             <span className="text-[10px] font-semibold uppercase text-zinc-500 dark:text-zinc-400 block mb-1">
               Due Date
             </span>
-            <input
-              type="date"
-              value={task.dueDate || ''}
-              onChange={e => updateTask(task.id, { dueDate: e.target.value || undefined })}
-              className="flex h-8 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
-            />
+            {canEditAll ? (
+              <input
+                type="date"
+                value={task.dueDate || ''}
+                onChange={e => updateTask(task.id, { dueDate: e.target.value || undefined })}
+                className="flex h-8 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
+              />
+            ) : (
+              <div className="h-8 flex items-center px-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-700 dark:text-zinc-300 text-xs font-mono">
+                {task.dueDate || 'No due date'}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Description */}
-        <MarkdownEditor
-          label="Description"
-          value={task.description || ''}
-          onChange={value => updateTask(task.id, { description: value })}
-          placeholder="Add task notes, specifications, or context..."
-          rows={3}
-        />
+        {canEditAll ? (
+          <MarkdownEditor
+            label="Description"
+            value={task.description || ''}
+            onChange={value => updateTask(task.id, { description: value })}
+            placeholder="Add task notes, specifications, or context..."
+            rows={3}
+          />
+        ) : (
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
+              Description
+            </label>
+            {task.description ? (
+              <div className="p-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/80 text-xs">
+                <MarkdownContent content={task.description} />
+              </div>
+            ) : (
+              <div className="p-3 rounded-md border border-dashed border-zinc-200 dark:border-zinc-800 text-xs text-zinc-400 dark:text-zinc-500">
+                No description
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Checklist */}
         <div className="space-y-2">
@@ -228,27 +305,31 @@ export const TaskDetailModal: React.FC = () => {
                   </span>
                 </div>
 
-                <button
-                  onClick={() => removeChecklistItem(task.id, item.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-rose-500 transition-opacity cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                {canEditAll && (
+                  <button
+                    onClick={() => removeChecklistItem(task.id, item.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-rose-500 transition-opacity cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
 
-            <form onSubmit={handleAddChecklist} className="flex gap-2 pt-1">
-              <input
-                type="text"
-                placeholder="Add checklist item..."
-                value={newChecklistTitle}
-                onChange={e => setNewChecklistTitle(e.target.value)}
-                className="flex-1 px-3 py-1.5 text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
-              />
-              <Button type="submit" size="sm" variant="secondary">
-                Add Item
-              </Button>
-            </form>
+            {canEditAll && (
+              <form onSubmit={handleAddChecklist} className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Add checklist item..."
+                  value={newChecklistTitle}
+                  onChange={e => setNewChecklistTitle(e.target.value)}
+                  className="flex-1 px-3 py-1.5 text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                />
+                <Button type="submit" size="sm" variant="secondary">
+                  Add Item
+                </Button>
+              </form>
+            )}
           </div>
         </div>
 
@@ -316,19 +397,23 @@ export const TaskDetailModal: React.FC = () => {
 
         {/* Footer actions */}
         <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800">
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={() => {
-              if (window.confirm('Delete this task?')) {
-                deleteTask(task.id);
-              }
-            }}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete Task</span>
-          </Button>
+          {canEditAll ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (window.confirm('Delete this task?')) {
+                  deleteTask(task.id);
+                }
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Task</span>
+            </Button>
+          ) : (
+            <div />
+          )}
 
           <Button
             type="button"

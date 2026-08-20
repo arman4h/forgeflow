@@ -5,14 +5,31 @@ import type {
   TaskStatus, Priority, SpaceCategory,
 } from '../types';
 
-// Auth
-export const register = (data: { name: string; email: string; password: string }) =>
-  api.post<{ token: string; user: User }>('/auth/register', data);
-export const login = (data: { email: string; password: string }) =>
-  api.post<{ token: string; user: User }>('/auth/login', data);
+// Auth (Supabase handles actual auth; these sync to our DB)
+export const syncUser = () => api.post<{ user: User }>('/auth/sync');
 export const getMe = () => api.get<{ user: User }>('/auth/me').then(r => r.user);
 export const ensurePersonalSpace = () =>
   api.post<{ spaceId: string }>('/auth/ensure-personal-space');
+export const completeProfile = (data: { name?: string; avatar?: string; useCase?: string }) =>
+  api.put<{ user: User }>('/auth/complete-profile', data);
+
+// Upload
+export const uploadImage = async (file: File) => {
+  const { getAccessToken } = await import('../lib/auth-client');
+  const token = await getAccessToken();
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await fetch('/api/upload/image', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(err.error || 'Upload failed');
+  }
+  return res.json() as Promise<{ url: string; publicId: string; format: string }>;
+};
 
 // Users
 export const getUsers = () => api.get<User[]>('/users');

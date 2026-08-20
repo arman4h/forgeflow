@@ -72,13 +72,13 @@ export const MilestoneView: React.FC = () => {
         status,
       });
     } else {
-      createMilestone({
-        spaceId: currentSpace.id,
-        title: title.trim(),
-        description: description.trim() || undefined,
+      createMilestone(
+        currentSpace.id,
+        title.trim(),
         dueDate,
-        status,
-      });
+        description.trim() || undefined,
+        undefined,
+      );
     }
     setIsCreateOpen(false);
   };
@@ -209,8 +209,7 @@ export const MilestoneView: React.FC = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Milestone Title *"
-            placeholder="e.g. Beta Launch, Final Report Submission"
+            placeholder="Milestone Title *"
             value={title}
             onChange={e => setTitle(e.target.value)}
             required
@@ -228,7 +227,7 @@ export const MilestoneView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               type="date"
-              label="Target Due Date *"
+              placeholder="Target Due Date *"
               value={dueDate}
               onChange={e => setDueDate(e.target.value)}
               required

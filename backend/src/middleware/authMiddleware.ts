@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { supabaseAdmin } from '../config/supabase.js';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -12,20 +13,17 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   }
 
   const token = authHeader.slice(7);
-  let userId: string;
-  try {
-    const decoded = Buffer.from(token, 'base64url').toString();
-    userId = decoded.split(':')[0];
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
-    return;
-  }
 
-  if (!userId) {
-    res.status(401).json({ error: 'Invalid or expired token' });
-    return;
-  }
-
-  req.userId = userId;
-  next();
+  supabaseAdmin.auth.getUser(token)
+    .then(({ data, error }) => {
+      if (error || !data.user) {
+        res.status(401).json({ error: 'Invalid or expired token' });
+        return;
+      }
+      req.userId = data.user.id;
+      next();
+    })
+    .catch(() => {
+      res.status(401).json({ error: 'Token verification failed' });
+    });
 }

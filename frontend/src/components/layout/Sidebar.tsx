@@ -61,12 +61,10 @@ export const Sidebar: React.FC = () => {
           onClick={handleNavigateHome}
           className="flex items-center gap-2.5 cursor-pointer group"
         >
-          <div className="w-8 h-8 rounded-lg bg-cyan-600 dark:bg-cyan-500 text-white dark:text-zinc-950 flex items-center justify-center font-bold text-sm shadow-xs group-hover:scale-105 group-hover:bg-cyan-500 dark:group-hover:bg-cyan-400 transition-all">
-            T
-          </div>
+          <img src="/Trackflow_logo.svg" alt="TaskFlow" className="w-8 h-8 rounded-lg shadow-xs group-hover:scale-105 transition-all" />
           <div>
             <span className="font-bold text-sm tracking-tight text-zinc-950 dark:text-zinc-50 flex items-center gap-1.5">
-              TrackFlow
+              TaskFlow
             </span>
             <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block -mt-0.5 font-medium">
               Simple Spaces

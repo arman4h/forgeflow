@@ -85,12 +85,11 @@ export const NotesView: React.FC = () => {
         isPinned,
       });
     } else {
-      createNote({
-        spaceId: currentSpace.id,
-        title: title.trim(),
-        content: content.trim(),
-        isPinned,
-      });
+      createNote(
+        currentSpace.id,
+        title.trim(),
+        content.trim(),
+      );
     }
     setIsModalOpen(false);
   };
@@ -152,7 +151,6 @@ export const NotesView: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedNotes.map(n => {
-            const author = getUserById(n.authorId);
             return (
               <div
                 key={n.id}
@@ -188,7 +186,7 @@ export const NotesView: React.FC = () => {
                 </div>
 
                 <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
-                  <span>By {author?.name.split(' ')[0] || 'Member'}</span>
+                  <span>By Member</span>
 
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
@@ -233,8 +231,7 @@ export const NotesView: React.FC = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Note Title *"
-            placeholder="e.g. Architecture Overview, Meeting Agenda"
+            placeholder="Note Title *"
             value={title}
             onChange={e => setTitle(e.target.value)}
             required

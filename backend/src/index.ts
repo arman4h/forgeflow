@@ -14,6 +14,7 @@ import { fileRoutes } from './routes/files.js';
 import { commentRoutes } from './routes/comments.js';
 import { activityRoutes } from './routes/activities.js';
 import { notificationRoutes } from './routes/notifications.js';
+import { uploadRoutes } from './routes/upload.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,8 +25,12 @@ app.use(express.json());
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-app.use('/api/auth', authRoutes);
 
+// Auth routes (sync, me, complete-profile, ensure-personal-space)
+app.use('/api/auth', authMiddleware, authRoutes);
+app.use('/api/upload', authMiddleware, uploadRoutes);
+
+// Protected routes
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/spaces', authMiddleware, spaceRoutes);
 app.use('/api/tasks', authMiddleware, taskRoutes);
@@ -41,7 +46,7 @@ app.use(errorHandler);
 async function start() {
   await initializeDatabase();
   app.listen(PORT, () => {
-    console.log(`TrackFlow API running on http://localhost:${PORT}`);
+    console.log(`TaskFlow API running on http://localhost:${PORT}`);
   });
 }
 
