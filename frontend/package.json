@@ -8,6 +8,7 @@
     "dev:frontend": "vite --port=3000",
     "dev:backend": "cd backend && npm run dev",
     "build": "vite build",
+    "deploy": "npm run build && wrangler deploy",
     "preview": "vite preview",
     "seed": "cd backend && npm run seed",
     "lint": "tsc --noEmit"
@@ -41,6 +42,7 @@
     "concurrently": "^9.1.2",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "wrangler": "^4.125.0"
   }
 }

@@ -19,7 +19,7 @@ export const uploadImage = async (file: File) => {
   const token = await getAccessToken();
   const formData = new FormData();
   formData.append('image', file);
-  const res = await fetch('/api/upload/image', {
+  const res = await fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}/api/upload/image`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
